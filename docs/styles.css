@@ -1,5 +1,4 @@
-<style>
-  :root {
+:root {
     --primary: #4e1412;
     --primary-light: #6e2422;
     --primary-lighter: #9a4644;
@@ -265,4 +264,3 @@
     .modal .form-row { grid-template-columns: 1fr; }
     table { min-width: 520px; }
   }
-</style>
