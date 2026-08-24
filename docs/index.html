@@ -1,0 +1,389 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+  <!-- ================= LOGIN ================= -->
+  <div id="loginScreen" class="login-screen">
+    <div class="login-card">
+      <div class="brand">ALUMA</div>
+      <div class="tagline">Panel administrativo de inventario</div>
+      <div id="loginError" class="login-error"></div>
+      <form id="loginForm" onsubmit="return false;">
+        <div class="field">
+          <label>Usuario</label>
+          <input type="text" id="loginUsuario" autocomplete="username" required>
+        </div>
+        <div class="field">
+          <label>Contraseña</label>
+          <input type="password" id="loginPassword" autocomplete="current-password" required>
+        </div>
+        <button type="submit" class="btn btn-primary btn-block" id="btnLogin" onclick="hacerLogin()">Ingresar</button>
+      </form>
+    </div>
+  </div>
+
+  <!-- ================= APP ================= -->
+  <div id="app" class="app">
+    <div id="overlay" class="overlay" onclick="cerrarSidebar()"></div>
+
+    <aside id="sidebar" class="sidebar">
+      <div class="brand">ALUMA</div>
+      <nav>
+        <button class="nav-item active" data-view="dashboard" onclick="irAVista('dashboard')"><span class="dot"></span> Dashboard</button>
+        <button class="nav-item" data-view="productos" onclick="irAVista('productos')"><span class="dot"></span> Productos</button>
+        <button class="nav-item" data-view="inventario" onclick="irAVista('inventario')"><span class="dot"></span> Inventario</button>
+        <button class="nav-item" data-view="entradas" onclick="irAVista('entradas')"><span class="dot"></span> Entradas</button>
+        <button class="nav-item" data-view="ventas" onclick="irAVista('ventas')"><span class="dot"></span> Ventas</button>
+        <button class="nav-item" data-view="movimientos" onclick="irAVista('movimientos')"><span class="dot"></span> Movimientos</button>
+        <button class="nav-item" data-view="categorias" onclick="irAVista('categorias')"><span class="dot"></span> Categorías</button>
+        <button class="nav-item" data-view="clientes" onclick="irAVista('clientes')"><span class="dot"></span> Clientes</button>
+        <button class="nav-item" data-view="proveedores" onclick="irAVista('proveedores')"><span class="dot"></span> Proveedores</button>
+        <button class="nav-item" data-view="reportes" onclick="irAVista('reportes')"><span class="dot"></span> Reportes</button>
+      </nav>
+      <div class="sidebar-footer">
+        <button class="btn btn-ghost btn-block" style="color:#f4e9e8" onclick="hacerLogout()">Cerrar sesión</button>
+      </div>
+    </aside>
+
+    <div class="main">
+      <div class="topbar">
+        <div style="display:flex; align-items:center; gap:12px;">
+          <button class="menu-toggle" onclick="abrirSidebar()">&#9776;</button>
+          <div class="page-title" id="pageTitle">Dashboard</div>
+        </div>
+        <div id="usuarioActual" style="font-size:13px; color:var(--muted);"></div>
+      </div>
+
+      <div class="content">
+
+        <!-- ===== DASHBOARD ===== -->
+        <section id="view-dashboard" class="view active">
+          <div class="view-header"><h2>Dashboard</h2></div>
+          <div id="dashStatsVentas" class="stats-grid"></div>
+          <div id="dashStatsInventario" class="stats-grid"></div>
+          <div class="cards-row">
+            <div class="panel"><h3>Ventas por mes</h3><div class="chart-box"><canvas id="chartVentasMes"></canvas></div></div>
+            <div class="panel"><h3>Utilidad por mes</h3><div class="chart-box"><canvas id="chartUtilidadMes"></canvas></div></div>
+          </div>
+          <div class="cards-row">
+            <div class="panel"><h3>Top 5 productos más vendidos</h3><div class="chart-box"><canvas id="chartTopProductos"></canvas></div></div>
+            <div class="panel"><h3>Ventas por categoría</h3><div class="chart-box"><canvas id="chartVentasCategoria"></canvas></div></div>
+            <div class="panel"><h3>Estado del inventario</h3><div class="chart-box"><canvas id="chartEstadoInventario"></canvas></div></div>
+          </div>
+          <div class="panel" id="dashOtros"></div>
+        </section>
+
+        <!-- ===== PRODUCTOS ===== -->
+        <section id="view-productos" class="view">
+          <div class="view-header">
+            <h2>Productos</h2>
+            <button class="btn btn-primary" onclick="abrirModalProducto()">+ Nuevo producto</button>
+          </div>
+          <div class="toolbar">
+            <input type="text" class="search-input" id="prodBuscar" placeholder="Buscar por nombre o SKU..." oninput="cargarProductos()">
+            <select id="prodFiltroCategoria" onchange="cargarProductos()"><option value="">Todas las categorías</option></select>
+            <select id="prodFiltroEstado" onchange="cargarProductos()">
+              <option value="">Todos los estados</option>
+              <option value="Activo">Activo</option>
+              <option value="Inactivo">Inactivo</option>
+            </select>
+            <select id="prodOrden" onchange="cargarProductos()">
+              <option value="">Sin orden</option>
+              <option value="precio">Precio</option>
+              <option value="stock">Stock</option>
+              <option value="ventas">Más vendidos</option>
+            </select>
+          </div>
+          <div class="table-wrap"><table>
+            <thead><tr><th>SKU</th><th>Nombre</th><th>Categoría</th><th>Costo</th><th>Precio</th><th>Stock</th><th>Estado</th><th></th></tr></thead>
+            <tbody id="tablaProductos"></tbody>
+          </table></div>
+        </section>
+
+        <!-- ===== INVENTARIO ===== -->
+        <section id="view-inventario" class="view">
+          <div class="view-header"><h2>Inventario</h2>
+            <button class="btn btn-secondary" onclick="abrirModalAjuste()">Ajustar inventario</button>
+          </div>
+          <div id="invStats" class="stats-grid"></div>
+          <div class="table-wrap"><table>
+            <thead><tr><th>Producto</th><th>SKU</th><th>Categoría</th><th>Costo</th><th>Precio</th><th>Stock</th><th>Stock mín.</th><th>Estado</th></tr></thead>
+            <tbody id="tablaInventario"></tbody>
+          </table></div>
+        </section>
+
+        <!-- ===== ENTRADAS ===== -->
+        <section id="view-entradas" class="view">
+          <div class="view-header">
+            <h2>Entradas de inventario</h2>
+            <button class="btn btn-primary" onclick="abrirModalEntrada()">+ Registrar entrada</button>
+          </div>
+          <div class="table-wrap"><table>
+            <thead><tr><th>Fecha</th><th>Producto</th><th>Cantidad</th><th>Costo</th><th>Motivo</th></tr></thead>
+            <tbody id="tablaEntradas"></tbody>
+          </table></div>
+        </section>
+
+        <!-- ===== VENTAS ===== -->
+        <section id="view-ventas" class="view">
+          <div class="view-header">
+            <h2>Ventas</h2>
+            <button class="btn btn-primary" onclick="abrirModalVenta()">+ Nueva venta</button>
+          </div>
+          <div class="toolbar">
+            <input type="date" id="ventasDesde" onchange="cargarVentas()">
+            <input type="date" id="ventasHasta" onchange="cargarVentas()">
+          </div>
+          <div class="table-wrap"><table>
+            <thead><tr><th>Fecha</th><th>Producto</th><th>Cant.</th><th>Precio</th><th>Total</th><th>Utilidad</th><th>Pago</th><th>Cliente</th></tr></thead>
+            <tbody id="tablaVentas"></tbody>
+          </table></div>
+        </section>
+
+        <!-- ===== MOVIMIENTOS ===== -->
+        <section id="view-movimientos" class="view">
+          <div class="view-header"><h2>Movimientos de inventario</h2></div>
+          <div class="toolbar">
+            <select id="movFiltroTipo" onchange="cargarMovimientos()">
+              <option value="">Todos los tipos</option>
+              <option value="Entrada">Entrada</option>
+              <option value="Venta">Venta</option>
+              <option value="AjustePositivo">Ajuste positivo</option>
+              <option value="AjusteNegativo">Ajuste negativo</option>
+              <option value="Devolucion">Devolución</option>
+            </select>
+          </div>
+          <div class="table-wrap"><table>
+            <thead><tr><th>Fecha</th><th>Producto</th><th>Tipo</th><th>Cant.</th><th>Stock ant.</th><th>Stock nuevo</th><th>Motivo</th></tr></thead>
+            <tbody id="tablaMovimientos"></tbody>
+          </table></div>
+        </section>
+
+        <!-- ===== CATEGORIAS ===== -->
+        <section id="view-categorias" class="view">
+          <div class="view-header">
+            <h2>Categorías</h2>
+            <button class="btn btn-primary" onclick="abrirModalCategoria()">+ Nueva categoría</button>
+          </div>
+          <div class="table-wrap"><table>
+            <thead><tr><th>Nombre</th><th>Descripción</th><th>Productos</th><th>Estado</th><th></th></tr></thead>
+            <tbody id="tablaCategorias"></tbody>
+          </table></div>
+        </section>
+
+        <!-- ===== CLIENTES ===== -->
+        <section id="view-clientes" class="view">
+          <div class="view-header">
+            <h2>Clientes</h2>
+            <button class="btn btn-primary" onclick="abrirModalCliente()">+ Nuevo cliente</button>
+          </div>
+          <div class="table-wrap"><table>
+            <thead><tr><th>Nombre</th><th>Teléfono</th><th>Ciudad</th><th>Compras</th><th>Total comprado</th><th>Última compra</th></tr></thead>
+            <tbody id="tablaClientes"></tbody>
+          </table></div>
+        </section>
+
+        <!-- ===== PROVEEDORES ===== -->
+        <section id="view-proveedores" class="view">
+          <div class="view-header">
+            <h2>Proveedores</h2>
+            <button class="btn btn-primary" onclick="abrirModalProveedor()">+ Nuevo proveedor</button>
+          </div>
+          <div class="table-wrap"><table>
+            <thead><tr><th>Nombre</th><th>Contacto</th><th>Teléfono</th><th>WhatsApp</th><th>Correo</th></tr></thead>
+            <tbody id="tablaProveedores"></tbody>
+          </table></div>
+        </section>
+
+        <!-- ===== REPORTES ===== -->
+        <section id="view-reportes" class="view">
+          <div class="view-header"><h2>Reportes</h2></div>
+          <div class="tabs">
+            <button class="tab-btn active" data-tab="ventas" onclick="cambiarTabReporte('ventas')">Ventas</button>
+            <button class="tab-btn" data-tab="inventario" onclick="cambiarTabReporte('inventario')">Inventario</button>
+            <button class="tab-btn" data-tab="productos" onclick="cambiarTabReporte('productos')">Productos</button>
+            <button class="tab-btn" data-tab="financiero" onclick="cambiarTabReporte('financiero')">Financiero</button>
+          </div>
+          <div class="toolbar" id="reportesFiltrosFecha">
+            <input type="date" id="repDesde" onchange="cargarReporteActivo()">
+            <input type="date" id="repHasta" onchange="cargarReporteActivo()">
+          </div>
+          <div id="reporteContenido"></div>
+        </section>
+
+      </div>
+    </div>
+  </div>
+
+  <!-- ================= MODALES ================= -->
+
+  <div class="modal-overlay" id="modalProducto">
+    <div class="modal">
+      <button class="modal-close" onclick="cerrarModal('modalProducto')">&times;</button>
+      <h3 id="modalProductoTitulo">Nuevo producto</h3>
+      <form onsubmit="return false;">
+        <input type="hidden" id="prodId">
+        <div class="field"><label>Nombre</label><input type="text" id="prodNombre" required></div>
+        <div class="form-row">
+          <div class="field"><label>Categoría</label><select id="prodCategoria" required></select></div>
+          <div class="field"><label>Subcategoría</label><input type="text" id="prodSubcategoria"></div>
+        </div>
+        <div class="form-row">
+          <div class="field"><label>Material</label><input type="text" id="prodMaterial"></div>
+          <div class="field"><label>Estado</label>
+            <select id="prodEstado"><option value="Activo">Activo</option><option value="Inactivo">Inactivo</option></select>
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="field"><label>Costo</label><input type="number" step="0.01" id="prodCosto" required></div>
+          <div class="field"><label>Precio de venta</label><input type="number" step="0.01" id="prodPrecio" required></div>
+        </div>
+        <div class="form-row">
+          <div class="field"><label>Stock inicial</label><input type="number" id="prodStockInicial" value="0"></div>
+          <div class="field"><label>Stock mínimo</label><input type="number" id="prodStockMinimo" value="3"></div>
+        </div>
+        <div class="field"><label>Descripción</label><textarea id="prodDescripcion"></textarea></div>
+        <div class="field"><label>URL de imagen</label><input type="text" id="prodImagen" placeholder="https://..."></div>
+        <div class="form-actions">
+          <button class="btn btn-ghost" onclick="cerrarModal('modalProducto')">Cancelar</button>
+          <button class="btn btn-primary" id="btnGuardarProducto" onclick="guardarProducto()">Guardar</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div class="modal-overlay" id="modalEntrada">
+    <div class="modal">
+      <button class="modal-close" onclick="cerrarModal('modalEntrada')">&times;</button>
+      <h3>Registrar entrada de inventario</h3>
+      <form onsubmit="return false;">
+        <div class="field"><label>Producto</label><select id="entradaProducto" required></select></div>
+        <div class="form-row">
+          <div class="field"><label>Cantidad</label><input type="number" id="entradaCantidad" required></div>
+          <div class="field"><label>Costo unitario</label><input type="number" step="0.01" id="entradaCosto" required></div>
+        </div>
+        <div class="field"><label>Proveedor</label><select id="entradaProveedor"><option value="">— Ninguno —</option></select></div>
+        <div class="field"><label>Motivo / nota</label><input type="text" id="entradaMotivo"></div>
+        <div class="form-actions">
+          <button class="btn btn-ghost" onclick="cerrarModal('modalEntrada')">Cancelar</button>
+          <button class="btn btn-primary" id="btnGuardarEntrada" onclick="guardarEntrada()">Registrar</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div class="modal-overlay" id="modalAjuste">
+    <div class="modal">
+      <button class="modal-close" onclick="cerrarModal('modalAjuste')">&times;</button>
+      <h3>Ajustar inventario</h3>
+      <form onsubmit="return false;">
+        <div class="field"><label>Producto</label><select id="ajusteProducto" required></select></div>
+        <div class="field"><label>Cantidad del ajuste (positiva o negativa, ej: -2)</label><input type="number" id="ajusteCantidad" required></div>
+        <div class="field"><label>Motivo</label><input type="text" id="ajusteMotivo" placeholder="Ej: Conteo físico" required></div>
+        <div class="form-actions">
+          <button class="btn btn-ghost" onclick="cerrarModal('modalAjuste')">Cancelar</button>
+          <button class="btn btn-primary" id="btnGuardarAjuste" onclick="guardarAjuste()">Aplicar ajuste</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div class="modal-overlay" id="modalVenta">
+    <div class="modal">
+      <button class="modal-close" onclick="cerrarModal('modalVenta')">&times;</button>
+      <h3>Nueva venta</h3>
+      <form onsubmit="return false;">
+        <div class="field"><label>Producto</label><select id="ventaProducto" required onchange="autocompletarPrecioVenta()"></select></div>
+        <div id="ventaStockDisponible" class="sub" style="font-size:12px; color:var(--muted); margin:-8px 0 12px;"></div>
+        <div class="form-row">
+          <div class="field"><label>Cantidad</label><input type="number" id="ventaCantidad" min="1" required></div>
+          <div class="field"><label>Precio de venta unitario</label><input type="number" step="0.01" id="ventaPrecio" required></div>
+        </div>
+        <div class="form-row">
+          <div class="field"><label>Método de pago</label>
+            <select id="ventaMetodoPago">
+              <option value="Efectivo">Efectivo</option>
+              <option value="Transferencia">Transferencia</option>
+              <option value="Tarjeta">Tarjeta</option>
+              <option value="Otro">Otro</option>
+            </select>
+          </div>
+          <div class="field"><label>Cliente (opcional)</label><input type="text" id="ventaCliente" placeholder="Nombre del cliente"></div>
+        </div>
+        <div class="field"><label>Observaciones</label><input type="text" id="ventaObservaciones"></div>
+        <div class="form-actions">
+          <button class="btn btn-ghost" onclick="cerrarModal('modalVenta')">Cancelar</button>
+          <button class="btn btn-primary" id="btnGuardarVenta" onclick="guardarVenta()">Registrar venta</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div class="modal-overlay" id="modalCategoria">
+    <div class="modal">
+      <button class="modal-close" onclick="cerrarModal('modalCategoria')">&times;</button>
+      <h3 id="modalCategoriaTitulo">Nueva categoría</h3>
+      <form onsubmit="return false;">
+        <input type="hidden" id="catId">
+        <div class="field"><label>Nombre</label><input type="text" id="catNombre" required></div>
+        <div class="field"><label>Descripción</label><input type="text" id="catDescripcion"></div>
+        <div class="form-actions">
+          <button class="btn btn-ghost" onclick="cerrarModal('modalCategoria')">Cancelar</button>
+          <button class="btn btn-primary" id="btnGuardarCategoria" onclick="guardarCategoria()">Guardar</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div class="modal-overlay" id="modalCliente">
+    <div class="modal">
+      <button class="modal-close" onclick="cerrarModal('modalCliente')">&times;</button>
+      <h3>Nuevo cliente</h3>
+      <form onsubmit="return false;">
+        <div class="field"><label>Nombre</label><input type="text" id="cliNombre" required></div>
+        <div class="form-row">
+          <div class="field"><label>Teléfono</label><input type="text" id="cliTelefono"></div>
+          <div class="field"><label>Ciudad</label><input type="text" id="cliCiudad"></div>
+        </div>
+        <div class="form-actions">
+          <button class="btn btn-ghost" onclick="cerrarModal('modalCliente')">Cancelar</button>
+          <button class="btn btn-primary" id="btnGuardarCliente" onclick="guardarCliente()">Guardar</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div class="modal-overlay" id="modalProveedor">
+    <div class="modal">
+      <button class="modal-close" onclick="cerrarModal('modalProveedor')">&times;</button>
+      <h3>Nuevo proveedor</h3>
+      <form onsubmit="return false;">
+        <div class="field"><label>Nombre</label><input type="text" id="provNombre" required></div>
+        <div class="form-row">
+          <div class="field"><label>Contacto</label><input type="text" id="provContacto"></div>
+          <div class="field"><label>Teléfono</label><input type="text" id="provTelefono"></div>
+        </div>
+        <div class="form-row">
+          <div class="field"><label>WhatsApp</label><input type="text" id="provWhatsapp"></div>
+          <div class="field"><label>Correo</label><input type="text" id="provCorreo"></div>
+        </div>
+        <div class="field"><label>Notas</label><textarea id="provNotas"></textarea></div>
+        <div class="form-actions">
+          <button class="btn btn-ghost" onclick="cerrarModal('modalProveedor')">Cancelar</button>
+          <button class="btn btn-primary" id="btnGuardarProveedor" onclick="guardarProveedor()">Guardar</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div class="toast-container" id="toastContainer"></div>
+
+  <script src="app.js"></script>
+</body>
+</html>
