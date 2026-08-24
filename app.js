@@ -2,7 +2,6 @@
    * ALUMA - JavaScript.html
    * Lógica del panel administrativo completo.
    * ============================================================ */
-
 /* ============================================================
    * ALUMA - app.js (versión GitHub Pages / API por fetch)
    * ------------------------------------------------------------
