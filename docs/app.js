@@ -27,7 +27,7 @@
    * Wrapper genérico para llamar funciones de Apps Script que
    * devuelven { ok, data } / { ok, error } (ver ejecutarSeguro_).
    * --------------------------------------------------------- */
-  function llamarApi(nombreFuncion, args, onOk, onError) {
+  function llamarApi(nombreFuncion, args, onOk, onError, _esReintento) {
     fetch(APPS_SCRIPT_URL, {
       method: 'POST',
       // 'text/plain' evita que el navegador dispare una petición OPTIONS
@@ -36,7 +36,10 @@
       headers: { 'Content-Type': 'text/plain;charset=utf-8' },
       body: JSON.stringify({ fn: nombreFuncion, args: args || [], token: SESION_TOKEN })
     })
-      .then(function (r) { return r.json(); })
+      .then(function (r) {
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        return r.json();
+      })
       .then(function (resp) {
         if (resp && resp.ok) {
           onOk && onOk(resp.data);
@@ -48,7 +51,18 @@
         }
       })
       .catch(function (err) {
-        console.error('[ALUMA] ' + nombreFuncion + ' falló (red/conexión):', err);
+        // Apps Script usado como API externa a veces falla de forma
+        // pasajera (redirecciones internas, límite de peticiones
+        // simultáneas). Reintentamos UNA vez, en silencio, antes de
+        // mostrar el error al usuario.
+        if (!_esReintento) {
+          console.warn('[ALUMA] ' + nombreFuncion + ' falló, reintentando en 1s...', err);
+          setTimeout(function () {
+            llamarApi(nombreFuncion, args, onOk, onError, true);
+          }, 1000);
+          return;
+        }
+        console.error('[ALUMA] ' + nombreFuncion + ' falló (red/conexión) tras reintento:', err);
         mostrarToast('Error de conexión: ' + err.message, 'error');
         onError && onError(err);
       });
@@ -124,7 +138,8 @@
   const TITULOS = {
     dashboard: 'Dashboard', productos: 'Productos', inventario: 'Inventario',
     entradas: 'Entradas de inventario', ventas: 'Ventas', movimientos: 'Movimientos',
-    categorias: 'Categorías', clientes: 'Clientes', proveedores: 'Proveedores', reportes: 'Reportes'
+    categorias: 'Categorías', clientes: 'Clientes', proveedores: 'Proveedores',
+    gastos: 'Gastos', reportes: 'Reportes'
   };
 
   function irAVista(vista) {
@@ -144,6 +159,7 @@
     else if (vista === 'categorias') cargarCategorias();
     else if (vista === 'clientes') cargarClientes();
     else if (vista === 'proveedores') cargarProveedores();
+    else if (vista === 'gastos') cargarGastos();
     else if (vista === 'reportes') cargarReporteActivo();
   }
 
@@ -368,6 +384,15 @@
    * INVENTARIO
    * ============================================================ */
 
+  let TAB_INVENTARIO_ACTUAL = 'activos';
+
+  function cambiarTabInventario(tab) {
+    TAB_INVENTARIO_ACTUAL = tab;
+    document.querySelectorAll('[data-invtab]').forEach(b => b.classList.toggle('active', b.dataset.invtab === tab));
+    document.getElementById('invPanelActivos').style.display = tab === 'activos' ? 'block' : 'none';
+    document.getElementById('invPanelAgotados').style.display = tab === 'agotados' ? 'block' : 'none';
+  }
+
   function cargarInventario() {
     llamarApi('obtenerEstadoInventario', [], function (d) {
       document.getElementById('invStats').innerHTML = `
@@ -382,15 +407,26 @@
       `;
     });
     llamarApi('obtenerProductos', [{ estado: 'Activo' }], function (data) {
-      const tbody = document.getElementById('tablaInventario');
-      if (!data.length) { tbody.innerHTML = filaVacia(8); return; }
-      tbody.innerHTML = data.map(p => `
+      CACHE.productos = data;
+      const conStock = data.filter(p => p.ESTADO_STOCK !== 'Agotado');
+      const agotados = data.filter(p => p.ESTADO_STOCK === 'Agotado');
+
+      const tbodyActivos = document.getElementById('tablaInventario');
+      tbodyActivos.innerHTML = conStock.length ? conStock.map(p => `
         <tr>
           <td>${p.NOMBRE}</td><td>${p.SKU}</td><td>${p.CATEGORIA}</td>
           <td>${money(p.COSTO)}</td><td>${money(p.PRECIO)}</td>
           <td>${p.STOCK}</td><td>${p.STOCK_MINIMO}</td>
           <td>${badgeEstadoStock(p.ESTADO_STOCK)}</td>
-        </tr>`).join('');
+        </tr>`).join('') : filaVacia(8);
+
+      const tbodyAgotados = document.getElementById('tablaAgotados');
+      tbodyAgotados.innerHTML = agotados.length ? agotados.map(p => `
+        <tr>
+          <td>${p.NOMBRE}</td><td>${p.SKU}</td><td>${p.CATEGORIA}</td>
+          <td>${fecha(p.FECHA_ACTUALIZACION)}</td>
+          <td><button class="btn btn-primary btn-sm" onclick="abrirModalEntrada('${p.ID}')">+ Agregar stock</button></td>
+        </tr>`).join('') : '<tr><td colspan="5"><div class="empty-state">No tienes productos agotados en este momento 🎉</div></td></tr>';
     });
   }
 
@@ -408,8 +444,13 @@
     });
   }
 
-  function abrirModalEntrada() {
-    document.getElementById('entradaProducto').selectedIndex = 0;
+  function abrirModalEntrada(productoIdPreseleccionado) {
+    const select = document.getElementById('entradaProducto');
+    if (productoIdPreseleccionado) {
+      select.value = productoIdPreseleccionado;
+    } else {
+      select.selectedIndex = 0;
+    }
     document.getElementById('entradaCantidad').value = '';
     document.getElementById('entradaCosto').value = '';
     document.getElementById('entradaProveedor').selectedIndex = 0;
@@ -433,6 +474,7 @@
       cerrarModal('modalEntrada');
       cargarEntradas();
       cargarDatosBase();
+      if (VISTA_ACTUAL === 'inventario') cargarInventario();
     }, function () { btn.disabled = false; });
   }
 
@@ -690,7 +732,7 @@
 
   function cambiarTabReporte(tab) {
     TAB_REPORTE_ACTUAL = tab;
-    document.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
+    document.querySelectorAll('.tab-btn[data-tab]').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
     document.getElementById('reportesFiltrosFecha').style.display = (tab === 'ventas' || tab === 'financiero') ? 'flex' : 'none';
     cargarReporteActivo();
   }
@@ -711,6 +753,19 @@
             <thead><tr><th>Fecha</th><th>Producto</th><th>Cant.</th><th>Total</th><th>Utilidad</th></tr></thead>
             <tbody>${d.ventas.length ? d.ventas.map(v => `<tr><td>${fecha(v.FECHA)}</td><td>${v.PRODUCTO}</td><td>${v.CANTIDAD}</td><td>${money(v.TOTAL)}</td><td>${money(v.UTILIDAD)}</td></tr>`).join('') : filaVacia(5)}</tbody>
           </table></div>`;
+      });
+    } else if (TAB_REPORTE_ACTUAL === 'mensual') {
+      llamarApi('reporteMensual', [], function (d) {
+        cont.innerHTML = `
+          <div class="view-header" style="margin-bottom:10px;">
+            <div></div>
+            <button class="btn btn-secondary btn-sm" onclick="exportarMensualCSV()">Exportar CSV</button>
+          </div>
+          <div class="table-wrap"><table>
+            <thead><tr><th>Mes</th><th>Unidades</th><th>Ventas</th><th>Costos</th><th>Utilidad</th><th>Margen</th></tr></thead>
+            <tbody>${d.meses.length ? d.meses.map(m => `<tr><td>${capitalizar(m.etiqueta)}</td><td>${m.unidades}</td><td>${money(m.ventas)}</td><td>${money(m.costos)}</td><td style="color:var(--success); font-weight:600;">${money(m.utilidad)}</td><td>${m.margen.toFixed(1)}%</td></tr>`).join('') : filaVacia(6)}</tbody>
+          </table></div>`;
+        window._ultimoReporteMensual = d.meses;
       });
     } else if (TAB_REPORTE_ACTUAL === 'inventario') {
       llamarApi('reporteInventario', [], function (d) {
@@ -745,8 +800,10 @@
             ${statCard('Valor potencial', money(d.valorPotencialInventario))}
             ${statCard('Ventas del período', money(d.periodo.ventas))}
             ${statCard('Costos del período', money(d.periodo.costos))}
-            ${statCard('Utilidad del período', money(d.periodo.utilidad), true)}
+            ${statCard('Utilidad del período', money(d.periodo.utilidad))}
             ${statCard('Margen', d.periodo.margen.toFixed(1) + '%')}
+            ${statCard('Gastos generales (sin margen)', money(d.periodo.gastosGenerales))}
+            ${statCard('Utilidad neta', money(d.periodo.utilidadNeta), true)}
           </div>`;
       });
     }
@@ -759,6 +816,130 @@
     return `<div class="panel"><h3>${titulo}</h3><div class="table-wrap"><table>
       <thead><tr><th>Producto</th><th>${etiquetaCampo}</th></tr></thead><tbody>${filas}</tbody>
     </table></div></div>`;
+  }
+
+  /* ============================================================
+   * GASTOS (Empaques + Generales sin margen)
+   * ============================================================ */
+
+  let TAB_GASTOS_ACTUAL = 'todos';
+
+  function cambiarTabGastos(tab) {
+    TAB_GASTOS_ACTUAL = tab;
+    document.querySelectorAll('[data-gastotab]').forEach(b => b.classList.toggle('active', b.dataset.gastotab === tab));
+    cargarGastos();
+  }
+
+  function cargarGastos() {
+    llamarApi('obtenerResumenGastos', [], function (r) {
+      document.getElementById('gastosStats').innerHTML = `
+        ${statCard('Costo de empaque por unidad', money(r.costoEmpaquePorUnidad), true)}
+        ${statCard('Total invertido en empaques', money(r.totalGastadoEmpaque))}
+        ${statCard('Total gastos generales (sin margen)', money(r.totalGastadoOtros))}
+      `;
+    });
+    const filtros = TAB_GASTOS_ACTUAL === 'todos' ? {} : { tipo: TAB_GASTOS_ACTUAL };
+    llamarApi('obtenerGastos', [filtros], function (data) {
+      const tbody = document.getElementById('tablaGastos');
+      if (!data.length) { tbody.innerHTML = filaVacia(6); return; }
+      tbody.innerHTML = data.map(g => `
+        <tr>
+          <td>${fecha(g.FECHA)}</td>
+          <td>${g.TIPO === 'Empaque' ? '<span class="badge badge-success">Empaque</span>' : '<span class="badge badge-muted">General</span>'}</td>
+          <td>${g.CONCEPTO}</td>
+          <td>${money(g.MONTO)}</td>
+          <td>${g.UNIDADES_CUBIERTAS || '—'}</td>
+          <td>${g.NOTAS || '—'}</td>
+        </tr>`).join('');
+    });
+  }
+
+  function abrirModalGasto(tipo) {
+    document.getElementById('gastoTipo').value = tipo;
+    document.getElementById('modalGastoTitulo').textContent = tipo === 'Empaque' ? 'Nuevo gasto de empaque' : 'Nuevo gasto general';
+    document.getElementById('gastoTipoTexto').textContent = tipo === 'Empaque'
+      ? 'Este costo se reparte entre unidades y se suma automáticamente al costo de cada venta nueva.'
+      : 'Este gasto NO se le carga a ningún producto — solo reduce tu utilidad neta general (ej. props para fotos).';
+    document.getElementById('gastoConcepto').value = '';
+    document.getElementById('gastoMonto').value = '';
+    document.getElementById('gastoUnidades').value = '';
+    document.getElementById('gastoNotas').value = '';
+    document.getElementById('gastoUnidadesWrap').style.display = tipo === 'Empaque' ? 'block' : 'none';
+    document.getElementById('gastoPreview').textContent = '';
+    abrirModal('modalGasto');
+  }
+
+  document.addEventListener('input', function (e) {
+    if (e.target && (e.target.id === 'gastoMonto' || e.target.id === 'gastoUnidades')) {
+      const monto = Number(document.getElementById('gastoMonto').value) || 0;
+      const unidades = Number(document.getElementById('gastoUnidades').value) || 0;
+      const preview = document.getElementById('gastoPreview');
+      if (document.getElementById('gastoTipo').value === 'Empaque' && unidades > 0) {
+        preview.textContent = 'Costo por unidad: ' + money(monto / unidades);
+      } else {
+        preview.textContent = '';
+      }
+    }
+  });
+
+  function guardarGasto() {
+    const tipo = document.getElementById('gastoTipo').value;
+    const datos = {
+      Tipo: tipo,
+      Concepto: document.getElementById('gastoConcepto').value.trim(),
+      Monto: document.getElementById('gastoMonto').value,
+      UnidadesCubiertas: document.getElementById('gastoUnidades').value,
+      Notas: document.getElementById('gastoNotas').value.trim()
+    };
+    const btn = document.getElementById('btnGuardarGasto');
+    btn.disabled = true;
+    llamarApi('registrarGasto', [datos], function () {
+      btn.disabled = false;
+      mostrarToast('Gasto registrado.', 'success');
+      cerrarModal('modalGasto');
+      cargarGastos();
+    }, function () { btn.disabled = false; });
+  }
+
+  /* ============================================================
+   * EXPORTAR CSV
+   * ============================================================ */
+
+  function capitalizar(s) { return s ? s.charAt(0).toUpperCase() + s.slice(1) : s; }
+
+  function descargarCSV(nombreArchivo, encabezados, filas) {
+    const escapar = (v) => '"' + String(v === undefined || v === null ? '' : v).replace(/"/g, '""') + '"';
+    const contenido = [encabezados.map(escapar).join(',')]
+      .concat(filas.map(f => f.map(escapar).join(',')))
+      .join('\r\n');
+    const blob = new Blob(['\uFEFF' + contenido], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = nombreArchivo;
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }
+
+  function exportarVentasCSV() {
+    llamarApi('obtenerVentas', [{
+      desde: document.getElementById('ventasDesde').value,
+      hasta: document.getElementById('ventasHasta').value
+    }], function (data) {
+      if (!data.length) { mostrarToast('No hay ventas para exportar.', 'error'); return; }
+      descargarCSV('aluma_ventas.csv',
+        ['Fecha', 'Producto', 'SKU', 'Cantidad', 'Precio unitario', 'Total', 'Utilidad', 'Método de pago', 'Cliente'],
+        data.map(v => [v.FECHA, v.PRODUCTO, v.SKU, v.CANTIDAD, v.PRECIO_UNITARIO, v.TOTAL, v.UTILIDAD, v.METODO_PAGO, v.OBSERVACIONES || ''])
+      );
+    });
+  }
+
+  function exportarMensualCSV() {
+    const meses = window._ultimoReporteMensual;
+    if (!meses || !meses.length) { mostrarToast('No hay datos para exportar.', 'error'); return; }
+    descargarCSV('aluma_reporte_mensual.csv',
+      ['Mes', 'Unidades', 'Ventas', 'Costos', 'Utilidad', 'Margen %'],
+      meses.map(m => [capitalizar(m.etiqueta), m.unidades, m.ventas, m.costos, m.utilidad, m.margen.toFixed(1)])
+    );
   }
 
   /* ============================================================
