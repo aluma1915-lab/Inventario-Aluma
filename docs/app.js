@@ -138,8 +138,8 @@
   const TITULOS = {
     dashboard: 'Dashboard', productos: 'Productos', inventario: 'Inventario',
     entradas: 'Entradas de inventario', ventas: 'Ventas', movimientos: 'Movimientos',
-    categorias: 'Categorías', clientes: 'Clientes', proveedores: 'Proveedores',
-    gastos: 'Gastos', reportes: 'Reportes'
+    categorias: 'Categorías', clientes: 'Clientes', deudores: 'Deudores', proveedores: 'Proveedores',
+    gastos: 'Gastos', finanzas: 'Finanzas', reportes: 'Reportes'
   };
 
   function irAVista(vista) {
@@ -158,8 +158,10 @@
     else if (vista === 'movimientos') cargarMovimientos();
     else if (vista === 'categorias') cargarCategorias();
     else if (vista === 'clientes') cargarClientes();
+    else if (vista === 'deudores') cargarDeudores();
     else if (vista === 'proveedores') cargarProveedores();
     else if (vista === 'gastos') cargarGastos();
+    else if (vista === 'finanzas') cargarFinanzas();
     else if (vista === 'reportes') cargarReporteActivo();
   }
 
@@ -184,6 +186,9 @@
       CACHE.productos = data;
       llenarSelectsProducto();
     });
+    llamarApi('obtenerClientes', [], function (data) {
+      CACHE.clientes = data;
+    });
   }
 
   function llenarSelectsCategoria() {
@@ -204,7 +209,7 @@
   function llenarSelectsProducto() {
     const activos = CACHE.productos.filter(p => p.ESTADO === 'Activo');
     const opciones = activos.map(p => `<option value="${p.ID}">${p.NOMBRE} (${p.SKU})</option>`).join('');
-    ['entradaProducto', 'ajusteProducto', 'ventaProducto'].forEach(function (id) {
+    ['entradaProducto', 'ajusteProducto'].forEach(function (id) {
       const el = document.getElementById(id);
       if (el) el.innerHTML = opciones;
     });
@@ -276,6 +281,16 @@
    * PRODUCTOS
    * ============================================================ */
 
+  let TAB_PRODUCTOS_ACTUAL = 'activos';
+
+  function cambiarTabProductos(tab) {
+    TAB_PRODUCTOS_ACTUAL = tab;
+    document.querySelectorAll('[data-prodtab]').forEach(b => b.classList.toggle('active', b.dataset.prodtab === tab));
+    document.getElementById('prodPanelActivos').style.display = tab === 'activos' ? 'block' : 'none';
+    document.getElementById('prodPanelHistoricos').style.display = tab === 'historicos' ? 'block' : 'none';
+    if (tab === 'historicos') cargarHistoricos();
+  }
+
   function cargarProductos() {
     const filtros = {
       busqueda: document.getElementById('prodBuscar').value,
@@ -285,9 +300,11 @@
     };
     llamarApi('obtenerProductos', [filtros], function (data) {
       CACHE.productos = data;
+      // Los agotados viven en la pestaña "Históricos", no aquí.
+      const conStock = data.filter(p => p.ESTADO_STOCK !== 'Agotado');
       const tbody = document.getElementById('tablaProductos');
-      if (!data.length) { tbody.innerHTML = filaVacia(8); return; }
-      tbody.innerHTML = data.map(p => `
+      if (!conStock.length) { tbody.innerHTML = filaVacia(8); return; }
+      tbody.innerHTML = conStock.map(p => `
         <tr>
           <td>${p.SKU}</td>
           <td>${p.NOMBRE}</td>
@@ -301,6 +318,20 @@
             <button class="btn btn-ghost btn-sm" onclick="cambiarEstadoProductoUI('${p.ID}','${p.ESTADO === 'Activo' ? 'Inactivo' : 'Activo'}')">${p.ESTADO === 'Activo' ? 'Desactivar' : 'Activar'}</button>
             <button class="btn btn-danger btn-sm" onclick="eliminarProductoUI('${p.ID}')">Eliminar</button>
           </td>
+        </tr>`).join('');
+    });
+  }
+
+  function cargarHistoricos() {
+    llamarApi('obtenerProductos', [{}], function (data) {
+      const agotados = data.filter(p => p.ESTADO_STOCK === 'Agotado' && p.ESTADO === 'Activo');
+      const tbody = document.getElementById('tablaHistoricos');
+      if (!agotados.length) { tbody.innerHTML = '<tr><td colspan="5"><div class="empty-state">No tienes productos históricos por ahora 🎉</div></td></tr>'; return; }
+      tbody.innerHTML = agotados.map(p => `
+        <tr>
+          <td>${p.SKU}</td><td>${p.NOMBRE}</td><td>${p.CATEGORIA}</td>
+          <td>${fecha(p.FECHA_ACTUALIZACION)}</td>
+          <td><button class="btn btn-primary btn-sm" onclick="abrirModalEntrada('${p.ID}')">+ Agregar stock</button></td>
         </tr>`).join('');
     });
   }
@@ -475,6 +506,7 @@
       cargarEntradas();
       cargarDatosBase();
       if (VISTA_ACTUAL === 'inventario') cargarInventario();
+      if (VISTA_ACTUAL === 'productos') { cargarProductos(); cargarHistoricos(); }
     }, function () { btn.disabled = false; });
   }
 
@@ -529,14 +561,62 @@
   }
 
   function abrirModalVenta() {
-    document.getElementById('ventaProducto').selectedIndex = 0;
+    document.getElementById('ventaProducto').value = '';
+    document.getElementById('ventaProductoBuscar').value = '';
+    document.getElementById('ventaProductoLista').style.display = 'none';
     document.getElementById('ventaCantidad').value = 1;
+    document.getElementById('ventaPrecio').value = '';
+    document.getElementById('ventaStockDisponible').textContent = '';
     document.getElementById('ventaMetodoPago').selectedIndex = 0;
     document.getElementById('ventaCliente').value = '';
     document.getElementById('ventaObservaciones').value = '';
-    autocompletarPrecioVenta();
+    document.getElementById('ventaEsCredito').checked = false;
+    document.getElementById('ventaAbonoInicial').value = 0;
+    document.getElementById('ventaAbonoWrap').style.display = 'none';
     abrirModal('modalVenta');
   }
+
+  function toggleVentaCredito() {
+    document.getElementById('ventaAbonoWrap').style.display = document.getElementById('ventaEsCredito').checked ? 'block' : 'none';
+  }
+
+  function filtrarProductosVenta() {
+    const q = document.getElementById('ventaProductoBuscar').value.toLowerCase().trim();
+    const lista = document.getElementById('ventaProductoLista');
+    const candidatos = CACHE.productos.filter(p => p.ESTADO === 'Activo' && Number(p.STOCK) > 0 && (
+      !q || (p.NOMBRE || '').toLowerCase().includes(q) || (p.SKU || '').toLowerCase().includes(q)
+    ));
+    if (!candidatos.length) {
+      lista.style.display = 'block';
+      lista.innerHTML = '<div class="empty-state" style="padding:14px;">Sin resultados</div>';
+      return;
+    }
+    lista.innerHTML = candidatos.slice(0, 25).map(p => `
+      <div onmousedown="seleccionarProductoVenta('${p.ID}')" style="padding:9px 14px; cursor:pointer; border-bottom:1px solid var(--border); background:var(--surface);"
+           onmouseover="this.style.background='var(--primary-bg)'" onmouseout="this.style.background='var(--surface)'">
+        <div style="font-size:13.5px;">${p.NOMBRE}</div>
+        <div style="font-size:11.5px; color:var(--muted);">${p.SKU} · Stock: ${p.STOCK} · ${money(p.PRECIO)}</div>
+      </div>`).join('');
+    lista.style.display = 'block';
+  }
+
+  function seleccionarProductoVenta(id) {
+    const p = CACHE.productos.find(x => x.ID === id);
+    if (!p) return;
+    document.getElementById('ventaProducto').value = id;
+    document.getElementById('ventaProductoBuscar').value = p.NOMBRE + ' (' + p.SKU + ')';
+    document.getElementById('ventaProductoLista').style.display = 'none';
+    autocompletarPrecioVenta();
+  }
+
+  document.addEventListener('DOMContentLoaded', function () {
+    const buscador = document.getElementById('ventaProductoBuscar');
+    if (buscador) {
+      buscador.addEventListener('blur', function () {
+        setTimeout(function () { document.getElementById('ventaProductoLista').style.display = 'none'; }, 150);
+      });
+    }
+  });
 
   function autocompletarPrecioVenta() {
     const id = document.getElementById('ventaProducto').value;
@@ -548,13 +628,24 @@
   }
 
   function guardarVenta() {
+    if (!document.getElementById('ventaProducto').value) {
+      mostrarToast('Busca y selecciona un producto de la lista.', 'error');
+      return;
+    }
+    const esCredito = document.getElementById('ventaEsCredito').checked;
+    if (esCredito && !document.getElementById('ventaCliente').value.trim()) {
+      mostrarToast('Para una venta a crédito debes indicar el nombre del cliente.', 'error');
+      return;
+    }
     const datos = {
       ProductoID: document.getElementById('ventaProducto').value,
       Cantidad: document.getElementById('ventaCantidad').value,
       PrecioUnitario: document.getElementById('ventaPrecio').value,
       MetodoPago: document.getElementById('ventaMetodoPago').value,
       Cliente: document.getElementById('ventaCliente').value.trim(),
-      Observaciones: document.getElementById('ventaObservaciones').value.trim()
+      Observaciones: document.getElementById('ventaObservaciones').value.trim(),
+      EsCredito: esCredito,
+      MontoInicial: esCredito ? document.getElementById('ventaAbonoInicial').value : 0
     };
     const btn = document.getElementById('btnGuardarVenta');
     btn.disabled = true;
@@ -653,6 +744,7 @@
 
   function cargarClientes() {
     llamarApi('obtenerClientes', [], function (data) {
+      CACHE.clientes = data;
       const tbody = document.getElementById('tablaClientes');
       if (!data.length) { tbody.innerHTML = filaVacia(6); return; }
       tbody.innerHTML = data.map(c => `
@@ -683,6 +775,113 @@
       mostrarToast('Cliente creado.', 'success');
       cerrarModal('modalCliente');
       cargarClientes();
+    }, function () { btn.disabled = false; });
+  }
+
+  /* ============================================================
+   * DEUDORES
+   * ============================================================ */
+
+  function cargarDeudores() {
+    const incluirPagados = document.getElementById('deudoresIncluirPagados').checked;
+    llamarApi('obtenerDeudores', [{ incluirPagados: incluirPagados }], function (data) {
+      const totalDebido = data.reduce((s, v) => s + Math.max(v.SALDO_PENDIENTE, 0), 0);
+      const totalAbonado = data.reduce((s, v) => s + (Number(v.MONTO_ABONADO) || 0), 0);
+      document.getElementById('deudoresStats').innerHTML = `
+        ${statCard('Clientes/ventas con deuda', data.filter(v => v.SALDO_PENDIENTE > 0).length)}
+        ${statCard('Total abonado', money(totalAbonado))}
+        ${statCard('Total por cobrar', money(totalDebido), true)}
+      `;
+      const tbody = document.getElementById('tablaDeudores');
+      if (!data.length) { tbody.innerHTML = filaVacia(7); return; }
+      tbody.innerHTML = data.map(v => {
+        const clienteNombre = (CACHE.clientes.find(c => c.ID === v.CLIENTE_ID) || {}).NOMBRE || '—';
+        return `
+        <tr>
+          <td>${fecha(v.FECHA)}</td>
+          <td>${clienteNombre}</td>
+          <td>${v.PRODUCTO}</td>
+          <td>${money(v.TOTAL)}</td>
+          <td>${money(v.MONTO_ABONADO)}</td>
+          <td style="color:${v.SALDO_PENDIENTE > 0 ? 'var(--danger)' : 'var(--success)'}; font-weight:600;">${money(v.SALDO_PENDIENTE)}</td>
+          <td>${v.SALDO_PENDIENTE > 0 ? `<button class="btn btn-primary btn-sm" onclick='abrirModalAbono(${JSON.stringify(v)})'>Registrar abono</button>` : '<span class="badge badge-success">Pagado</span>'}</td>
+        </tr>`;
+      }).join('');
+    });
+  }
+
+  function abrirModalAbono(venta) {
+    document.getElementById('abonoVentaId').value = venta.ID;
+    document.getElementById('abonoInfo').innerHTML = `${venta.PRODUCTO}<br>Total: ${money(venta.TOTAL)} · Abonado: ${money(venta.MONTO_ABONADO)} · <strong>Debe: ${money(venta.SALDO_PENDIENTE)}</strong>`;
+    document.getElementById('abonoMonto').value = '';
+    document.getElementById('abonoMonto').max = venta.SALDO_PENDIENTE;
+    abrirModal('modalAbono');
+  }
+
+  function guardarAbono() {
+    const datos = {
+      VentaID: document.getElementById('abonoVentaId').value,
+      Monto: document.getElementById('abonoMonto').value
+    };
+    const btn = document.getElementById('btnGuardarAbono');
+    btn.disabled = true;
+    llamarApi('registrarAbono', [datos], function () {
+      btn.disabled = false;
+      mostrarToast('Abono registrado.', 'success');
+      cerrarModal('modalAbono');
+      cargarDeudores();
+    }, function () { btn.disabled = false; });
+  }
+
+  /* ============================================================
+   * FINANZAS
+   * ============================================================ */
+
+  function cargarFinanzas() {
+    llamarApi('obtenerFinanzasGenerales', [], function (d) {
+      document.getElementById('finInventario').innerHTML = `
+        ${statCard('Valor al costo', money(d.inventario.valorCosto))}
+        ${statCard('Valor de venta', money(d.inventario.valorVenta))}
+        ${statCard('Utilidad potencial', money(d.inventario.utilidadPotencial), true)}
+      `;
+      document.getElementById('finHistorico').innerHTML = `
+        ${statCard('Ventas acumuladas', money(d.historico.ventasAcumuladas))}
+        ${statCard('Utilidad acumulada', money(d.historico.utilidadAcumulada))}
+        ${statCard('Gastos de empaque', money(d.historico.gastosEmpaqueAcumulados))}
+        ${statCard('Gastos generales', money(d.historico.gastosGeneralesAcumulados))}
+        ${statCard('Utilidad neta', money(d.historico.utilidadNeta), true)}
+      `;
+      document.getElementById('finReinversion').innerHTML = `
+        ${statCard('Total reinvertido', money(d.reinversion.totalReinvertido))}
+        ${statCard('% de la utilidad neta reinvertido', d.reinversion.porcentajeReinvertido.toFixed(1) + '%')}
+        ${statCard('Disponible sin reinvertir', money(d.reinversion.disponibleSinReinvertir), true)}
+      `;
+    });
+    llamarApi('obtenerReinversiones', [], function (data) {
+      const tbody = document.getElementById('tablaReinversiones');
+      if (!data.length) { tbody.innerHTML = filaVacia(3); return; }
+      tbody.innerHTML = data.map(r => `<tr><td>${fecha(r.FECHA)}</td><td>${money(r.MONTO)}</td><td>${r.NOTA || '—'}</td></tr>`).join('');
+    });
+  }
+
+  function abrirModalReinversion() {
+    document.getElementById('reinversionMonto').value = '';
+    document.getElementById('reinversionNota').value = '';
+    abrirModal('modalReinversion');
+  }
+
+  function guardarReinversion() {
+    const datos = {
+      Monto: document.getElementById('reinversionMonto').value,
+      Nota: document.getElementById('reinversionNota').value.trim()
+    };
+    const btn = document.getElementById('btnGuardarReinversion');
+    btn.disabled = true;
+    llamarApi('registrarReinversion', [datos], function () {
+      btn.disabled = false;
+      mostrarToast('Reinversión registrada.', 'success');
+      cerrarModal('modalReinversion');
+      cargarFinanzas();
     }, function () { btn.disabled = false; });
   }
 
