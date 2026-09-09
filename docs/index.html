@@ -43,8 +43,10 @@
         <button class="nav-item" data-view="movimientos" onclick="irAVista('movimientos')"><span class="dot"></span> Movimientos</button>
         <button class="nav-item" data-view="categorias" onclick="irAVista('categorias')"><span class="dot"></span> Categorías</button>
         <button class="nav-item" data-view="clientes" onclick="irAVista('clientes')"><span class="dot"></span> Clientes</button>
+        <button class="nav-item" data-view="deudores" onclick="irAVista('deudores')"><span class="dot"></span> Deudores</button>
         <button class="nav-item" data-view="proveedores" onclick="irAVista('proveedores')"><span class="dot"></span> Proveedores</button>
         <button class="nav-item" data-view="gastos" onclick="irAVista('gastos')"><span class="dot"></span> Gastos</button>
+        <button class="nav-item" data-view="finanzas" onclick="irAVista('finanzas')"><span class="dot"></span> Finanzas</button>
         <button class="nav-item" data-view="reportes" onclick="irAVista('reportes')"><span class="dot"></span> Reportes</button>
       </nav>
       <div class="sidebar-footer">
@@ -86,25 +88,38 @@
             <h2>Productos</h2>
             <button class="btn btn-primary" onclick="abrirModalProducto()">+ Nuevo producto</button>
           </div>
-          <div class="toolbar">
-            <input type="text" class="search-input" id="prodBuscar" placeholder="Buscar por nombre o SKU..." oninput="cargarProductos()">
-            <select id="prodFiltroCategoria" onchange="cargarProductos()"><option value="">Todas las categorías</option></select>
-            <select id="prodFiltroEstado" onchange="cargarProductos()">
-              <option value="">Todos los estados</option>
-              <option value="Activo">Activo</option>
-              <option value="Inactivo">Inactivo</option>
-            </select>
-            <select id="prodOrden" onchange="cargarProductos()">
-              <option value="">Sin orden</option>
-              <option value="precio">Precio</option>
-              <option value="stock">Stock</option>
-              <option value="ventas">Más vendidos</option>
-            </select>
+          <div class="tabs">
+            <button class="tab-btn active" data-prodtab="activos" onclick="cambiarTabProductos('activos')">Productos</button>
+            <button class="tab-btn" data-prodtab="historicos" onclick="cambiarTabProductos('historicos')">Históricos</button>
           </div>
-          <div class="table-wrap"><table>
-            <thead><tr><th>SKU</th><th>Nombre</th><th>Categoría</th><th>Costo</th><th>Precio</th><th>Stock</th><th>Estado</th><th></th></tr></thead>
-            <tbody id="tablaProductos"></tbody>
-          </table></div>
+          <div id="prodPanelActivos">
+            <div class="toolbar">
+              <input type="text" class="search-input" id="prodBuscar" placeholder="Buscar por nombre o SKU..." oninput="cargarProductos()">
+              <select id="prodFiltroCategoria" onchange="cargarProductos()"><option value="">Todas las categorías</option></select>
+              <select id="prodFiltroEstado" onchange="cargarProductos()">
+                <option value="">Todos los estados</option>
+                <option value="Activo">Activo</option>
+                <option value="Inactivo">Inactivo</option>
+              </select>
+              <select id="prodOrden" onchange="cargarProductos()">
+                <option value="">Sin orden</option>
+                <option value="precio">Precio</option>
+                <option value="stock">Stock</option>
+                <option value="ventas">Más vendidos</option>
+              </select>
+            </div>
+            <div class="table-wrap"><table>
+              <thead><tr><th>SKU</th><th>Nombre</th><th>Categoría</th><th>Costo</th><th>Precio</th><th>Stock</th><th>Estado</th><th></th></tr></thead>
+              <tbody id="tablaProductos"></tbody>
+            </table></div>
+          </div>
+          <div id="prodPanelHistoricos" style="display:none;">
+            <p class="sub" style="font-size:13px; color:var(--muted); margin-top:0;">Productos agotados que aún no has vuelto a comprar. Al agregarles stock, vuelven solos a la pestaña "Productos".</p>
+            <div class="table-wrap"><table>
+              <thead><tr><th>SKU</th><th>Nombre</th><th>Categoría</th><th>Última actualización</th><th></th></tr></thead>
+              <tbody id="tablaHistoricos"></tbody>
+            </table></div>
+          </div>
         </section>
 
         <!-- ===== INVENTARIO ===== -->
@@ -234,6 +249,45 @@
           </table></div>
         </section>
 
+        <!-- ===== DEUDORES ===== -->
+        <section id="view-deudores" class="view">
+          <div class="view-header">
+            <h2>Deudores</h2>
+            <label style="font-size:13px; color:var(--muted); display:flex; align-items:center; gap:6px;">
+              <input type="checkbox" id="deudoresIncluirPagados" onchange="cargarDeudores()" style="width:auto;"> Mostrar también los ya pagados
+            </label>
+          </div>
+          <div id="deudoresStats" class="stats-grid"></div>
+          <div class="table-wrap"><table>
+            <thead><tr><th>Fecha</th><th>Cliente</th><th>Producto</th><th>Total</th><th>Abonado</th><th>Debe</th><th></th></tr></thead>
+            <tbody id="tablaDeudores"></tbody>
+          </table></div>
+        </section>
+
+        <!-- ===== FINANZAS ===== -->
+        <section id="view-finanzas" class="view">
+          <div class="view-header">
+            <h2>Finanzas</h2>
+            <button class="btn btn-primary" onclick="abrirModalReinversion()">+ Registrar reinversión</button>
+          </div>
+          <div class="panel" style="margin-bottom:16px;">
+            <h3>Inventario actual</h3>
+            <div id="finInventario" class="stats-grid"></div>
+          </div>
+          <div class="panel" style="margin-bottom:16px;">
+            <h3>Histórico del negocio (desde el primer día)</h3>
+            <div id="finHistorico" class="stats-grid"></div>
+          </div>
+          <div class="panel" style="margin-bottom:16px;">
+            <h3>Reinversión</h3>
+            <div id="finReinversion" class="stats-grid"></div>
+          </div>
+          <div class="table-wrap"><table>
+            <thead><tr><th>Fecha</th><th>Monto</th><th>Nota</th></tr></thead>
+            <tbody id="tablaReinversiones"></tbody>
+          </table></div>
+        </section>
+
         <!-- ===== REPORTES ===== -->
         <section id="view-reportes" class="view">
           <div class="view-header"><h2>Reportes</h2></div>
@@ -333,7 +387,12 @@
       <button class="modal-close" onclick="cerrarModal('modalVenta')">&times;</button>
       <h3>Nueva venta</h3>
       <form onsubmit="return false;">
-        <div class="field"><label>Producto</label><select id="ventaProducto" required onchange="autocompletarPrecioVenta()"></select></div>
+        <div class="field" style="position:relative;">
+          <label>Producto</label>
+          <input type="text" id="ventaProductoBuscar" placeholder="🔍 Buscar por nombre o SKU..." autocomplete="off" oninput="filtrarProductosVenta()" onfocus="filtrarProductosVenta()">
+          <input type="hidden" id="ventaProducto">
+          <div id="ventaProductoLista" class="table-wrap" style="position:absolute; z-index:50; max-height:220px; overflow-y:auto; display:none; width:100%; margin-top:4px;"></div>
+        </div>
         <div id="ventaStockDisponible" class="sub" style="font-size:12px; color:var(--muted); margin:-8px 0 12px;"></div>
         <div class="form-row">
           <div class="field"><label>Cantidad</label><input type="number" id="ventaCantidad" min="1" required></div>
@@ -348,7 +407,15 @@
               <option value="Otro">Otro</option>
             </select>
           </div>
-          <div class="field"><label>Cliente (opcional)</label><input type="text" id="ventaCliente" placeholder="Nombre del cliente"></div>
+          <div class="field"><label>Cliente (obligatorio si es a crédito)</label><input type="text" id="ventaCliente" placeholder="Nombre del cliente"></div>
+        </div>
+        <div class="field" style="display:flex; align-items:center; gap:8px;">
+          <input type="checkbox" id="ventaEsCredito" onchange="toggleVentaCredito()" style="width:auto;">
+          <label style="margin:0;" for="ventaEsCredito">Venta a crédito (el cliente queda debiendo)</label>
+        </div>
+        <div id="ventaAbonoWrap" class="field" style="display:none;">
+          <label>Abono inicial (puede ser $0)</label>
+          <input type="number" step="0.01" id="ventaAbonoInicial" value="0">
         </div>
         <div class="field"><label>Observaciones</label><input type="text" id="ventaObservaciones"></div>
         <div class="form-actions">
@@ -438,9 +505,39 @@
     </div>
   </div>
 
+  <div class="modal-overlay" id="modalAbono">
+    <div class="modal">
+      <button class="modal-close" onclick="cerrarModal('modalAbono')">&times;</button>
+      <h3>Registrar abono</h3>
+      <form onsubmit="return false;">
+        <input type="hidden" id="abonoVentaId">
+        <div id="abonoInfo" class="sub" style="font-size:13px; color:var(--muted); margin-bottom:12px;"></div>
+        <div class="field"><label>Monto del abono</label><input type="number" step="0.01" id="abonoMonto" required></div>
+        <div class="form-actions">
+          <button class="btn btn-ghost" onclick="cerrarModal('modalAbono')">Cancelar</button>
+          <button class="btn btn-primary" id="btnGuardarAbono" onclick="guardarAbono()">Registrar abono</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div class="modal-overlay" id="modalReinversion">
+    <div class="modal">
+      <button class="modal-close" onclick="cerrarModal('modalReinversion')">&times;</button>
+      <h3>Registrar reinversión</h3>
+      <form onsubmit="return false;">
+        <div class="field"><label>Monto reinvertido</label><input type="number" step="0.01" id="reinversionMonto" required></div>
+        <div class="field"><label>Nota</label><input type="text" id="reinversionNota" placeholder="Ej: Compra de mercancía nueva - proveedor X"></div>
+        <div class="form-actions">
+          <button class="btn btn-ghost" onclick="cerrarModal('modalReinversion')">Cancelar</button>
+          <button class="btn btn-primary" id="btnGuardarReinversion" onclick="guardarReinversion()">Guardar</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
   <div class="toast-container" id="toastContainer"></div>
 
   <script src="app.js"></script>
 </body>
 </html>
-
