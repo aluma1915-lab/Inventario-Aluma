@@ -887,6 +887,7 @@
    * ============================================================ */
 
   function cargarFinanzas() {
+    cargarDistribucion();
     llamarApi('obtenerFinanzasGenerales', [], function (d) {
       document.getElementById('finInventario').innerHTML = `
         ${statCard('Valor al costo', money(d.inventario.valorCosto))}
@@ -920,6 +921,64 @@
       tbody.innerHTML = data.map(r => `
         <tr><td>${fecha(r.FECHA)}</td><td>${money(r.MONTO)}</td><td>${r.BENEFICIARIO || '—'}</td><td>${r.NOTA || '—'}</td>
         <td><button class="btn btn-danger btn-sm" onclick="eliminarRetiroUI('${r.ID}')">Eliminar</button></td></tr>`).join('');
+    });
+  }
+
+  function cargarDistribucion() {
+    llamarApi('obtenerDistribucionUtilidades', [], function (d) {
+      document.getElementById('distPorcentaje').value = d.config.porcentajeRetiro;
+      document.getElementById('distDiaPago').value = d.config.diaPago;
+
+      document.getElementById('distPoliticaTexto').innerHTML =
+        `Del total de la utilidad neta de cada mes, <strong>${d.config.porcentajeRetiro}%</strong> se reparte entre los socios ` +
+        `y <strong>${d.config.porcentajeReinversion}%</strong> se reinvierte en inventario. ` +
+        `Próximo pago: <strong>${d.proximoPago.fecha}</strong> (en ${d.proximoPago.diasFaltantes} día${d.proximoPago.diasFaltantes === 1 ? '' : 's'}).`;
+
+      const m = d.mesActual;
+      document.getElementById('distMesActual').innerHTML = `
+        ${statCard('Utilidad neta de ' + capitalizar(m.etiqueta), money(m.utilidadNeta), true)}
+        ${statCard('Les corresponde pagarse', money(m.correspondeRetirar), true)}
+        ${statCard('Ya se pagaron', money(m.retiradoReal))}
+        ${statCard(m.pendienteRetirar >= 0 ? 'Falta por pagarse' : 'Se pagaron de más', money(Math.abs(m.pendienteRetirar)))}
+        ${statCard('Corresponde reinvertir', money(m.correspondeReinvertir))}
+        ${statCard('Ya invertido en mercancía', money(m.invertidoReal))}
+        ${statCard(m.pendienteReinvertir >= 0 ? 'Falta por reinvertir' : 'Invirtieron de más', money(Math.abs(m.pendienteReinvertir)))}
+      `;
+
+      const tbody = document.getElementById('tablaDistribucion');
+      if (!d.historico.length) { tbody.innerHTML = filaVacia(8); return; }
+      tbody.innerHTML = d.historico.map(h => `
+        <tr>
+          <td>${capitalizar(h.etiqueta)}</td>
+          <td style="font-weight:600;">${money(h.utilidadNeta)}</td>
+          <td>${money(h.correspondeRetirar)}</td>
+          <td>${money(h.retiradoReal)}</td>
+          <td style="color:${h.pendienteRetirar > 0 ? 'var(--warning)' : 'var(--success)'};">${money(h.pendienteRetirar)}</td>
+          <td>${money(h.correspondeReinvertir)}</td>
+          <td>${money(h.invertidoReal)}</td>
+          <td style="color:${h.pendienteReinvertir > 0 ? 'var(--warning)' : 'var(--success)'};">${money(h.pendienteReinvertir)}</td>
+        </tr>`).join('') + `
+        <tr style="background:var(--primary-bg); font-weight:700;">
+          <td>TOTAL</td>
+          <td>${money(d.acumulado.utilidadNeta)}</td>
+          <td>${money(d.acumulado.correspondeRetirar)}</td>
+          <td>${money(d.acumulado.retiradoReal)}</td>
+          <td>${money(d.acumulado.pendienteRetirar)}</td>
+          <td>${money(d.acumulado.correspondeReinvertir)}</td>
+          <td>${money(d.acumulado.invertidoReal)}</td>
+          <td>${money(d.acumulado.pendienteReinvertir)}</td>
+        </tr>`;
+    });
+  }
+
+  function guardarPolitica() {
+    const datos = {
+      PorcentajeRetiro: document.getElementById('distPorcentaje').value,
+      DiaPago: document.getElementById('distDiaPago').value
+    };
+    llamarApi('guardarPoliticaDistribucion', [datos], function (r) {
+      mostrarToast(`Política guardada: ${r.porcentajeRetiro}% reparto / ${r.porcentajeReinversion}% reinversión, día ${r.diaPago}.`, 'success');
+      cargarDistribucion();
     });
   }
 
