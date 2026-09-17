@@ -226,9 +226,12 @@
         ${statCard('Ventas de la semana', money(d.ventas.semana))}
         ${statCard('Ventas del mes', money(d.ventas.mes))}
         ${statCard('Ventas totales', money(d.ventas.total), true)}
-        ${statCard('Utilidad del día', money(d.utilidades.dia))}
-        ${statCard('Utilidad del mes', money(d.utilidades.mes))}
-        ${statCard('Utilidad acumulada', money(d.utilidades.acumulada), true)}
+        ${statCard('Utilidad bruta del mes', money(d.utilidades.mes))}
+        ${statCard('Gastos del mes', money(d.gastos.mes))}
+        ${statCard('Utilidad neta del mes', money(d.utilidades.netaMes), true)}
+        ${statCard('Pagos/retiros del mes', money(d.retiros.mes))}
+        ${statCard('Disponible del mes', money(d.disponible.mes), true)}
+        ${statCard('Utilidad neta acumulada', money(d.utilidades.netaAcumulada), true)}
       `;
 
       document.getElementById('dashStatsInventario').innerHTML = `
@@ -555,7 +558,12 @@
           <td>${fecha(v.FECHA)}</td><td>${v.PRODUCTO}</td><td>${v.CANTIDAD}</td>
           <td>${money(v.PRECIO_UNITARIO)}</td><td>${money(v.TOTAL)}</td>
           <td style="color:var(--success); font-weight:600;">${money(v.UTILIDAD)}</td>
-          <td>${v.METODO_PAGO || '—'}</td><td>${v.OBSERVACIONES || '—'}</td>
+          <td>${v.METODO_PAGO || '—'}${v.ES_CREDITO === true ? ' <span class="badge badge-warning">Crédito</span>' : ''}</td>
+          <td>${v.OBSERVACIONES || '—'}</td>
+          <td class="table-actions">
+            <button class="btn btn-secondary btn-sm" onclick='abrirModalEditarVenta(${JSON.stringify(v)})'>Editar</button>
+            <button class="btn btn-danger btn-sm" onclick="eliminarVentaUI('${v.ID}')">Eliminar</button>
+          </td>
         </tr>`).join('');
     });
   }
@@ -569,6 +577,7 @@
     document.getElementById('ventaStockDisponible').textContent = '';
     document.getElementById('ventaMetodoPago').selectedIndex = 0;
     document.getElementById('ventaCliente').value = '';
+    document.getElementById('ventaClienteTelefono').value = '';
     document.getElementById('ventaObservaciones').value = '';
     document.getElementById('ventaEsCredito').checked = false;
     document.getElementById('ventaAbonoInicial').value = 0;
@@ -643,6 +652,7 @@
       PrecioUnitario: document.getElementById('ventaPrecio').value,
       MetodoPago: document.getElementById('ventaMetodoPago').value,
       Cliente: document.getElementById('ventaCliente').value.trim(),
+      ClienteTelefono: document.getElementById('ventaClienteTelefono').value.trim(),
       Observaciones: document.getElementById('ventaObservaciones').value.trim(),
       EsCredito: esCredito,
       MontoInicial: esCredito ? document.getElementById('ventaAbonoInicial').value : 0
@@ -656,6 +666,45 @@
       cargarVentas();
       cargarDatosBase();
     }, function () { btn.disabled = false; });
+  }
+
+  function abrirModalEditarVenta(venta) {
+    document.getElementById('editVentaId').value = venta.ID;
+    document.getElementById('editVentaInfo').innerHTML =
+      `${venta.PRODUCTO} · ${venta.SKU}<br>Vendida el ${fecha(venta.FECHA)}`;
+    document.getElementById('editVentaCantidad').value = venta.CANTIDAD;
+    document.getElementById('editVentaPrecio').value = venta.PRECIO_UNITARIO;
+    document.getElementById('editVentaMetodoPago').value = venta.METODO_PAGO || 'Efectivo';
+    document.getElementById('editVentaObservaciones').value = venta.OBSERVACIONES || '';
+    abrirModal('modalEditarVenta');
+  }
+
+  function guardarEdicionVenta() {
+    const id = document.getElementById('editVentaId').value;
+    const datos = {
+      Cantidad: document.getElementById('editVentaCantidad').value,
+      PrecioUnitario: document.getElementById('editVentaPrecio').value,
+      MetodoPago: document.getElementById('editVentaMetodoPago').value,
+      Observaciones: document.getElementById('editVentaObservaciones').value.trim()
+    };
+    const btn = document.getElementById('btnGuardarEdicionVenta');
+    btn.disabled = true;
+    llamarApi('editarVenta', [id, datos], function () {
+      btn.disabled = false;
+      mostrarToast('Venta actualizada. Stock ajustado si hizo falta.', 'success');
+      cerrarModal('modalEditarVenta');
+      cargarVentas();
+      cargarDatosBase();
+    }, function () { btn.disabled = false; });
+  }
+
+  function eliminarVentaUI(id) {
+    if (!confirm('¿Eliminar esta venta? El stock del producto se devolverá automáticamente.')) return;
+    llamarApi('eliminarVenta', [id], function () {
+      mostrarToast('Venta eliminada y stock devuelto.', 'success');
+      cargarVentas();
+      cargarDatosBase();
+    });
   }
 
   /* ============================================================
@@ -853,14 +902,65 @@
       `;
       document.getElementById('finReinversion').innerHTML = `
         ${statCard('Total reinvertido', money(d.reinversion.totalReinvertido))}
-        ${statCard('% de la utilidad neta reinvertido', d.reinversion.porcentajeReinvertido.toFixed(1) + '%')}
-        ${statCard('Disponible sin reinvertir', money(d.reinversion.disponibleSinReinvertir), true)}
+        ${statCard('Total pagado a socios', money(d.reinversion.totalRetirado))}
+        ${statCard('% reinvertido', d.reinversion.porcentajeReinvertido.toFixed(1) + '%')}
+        ${statCard('Disponible libre', money(d.reinversion.disponibleSinReinvertir), true)}
       `;
     });
     llamarApi('obtenerReinversiones', [], function (data) {
       const tbody = document.getElementById('tablaReinversiones');
-      if (!data.length) { tbody.innerHTML = filaVacia(3); return; }
-      tbody.innerHTML = data.map(r => `<tr><td>${fecha(r.FECHA)}</td><td>${money(r.MONTO)}</td><td>${r.NOTA || '—'}</td></tr>`).join('');
+      if (!data.length) { tbody.innerHTML = filaVacia(4); return; }
+      tbody.innerHTML = data.map(r => `
+        <tr><td>${fecha(r.FECHA)}</td><td>${money(r.MONTO)}</td><td>${r.NOTA || '—'}</td>
+        <td><button class="btn btn-danger btn-sm" onclick="eliminarReinversionUI('${r.ID}')">Eliminar</button></td></tr>`).join('');
+    });
+    llamarApi('obtenerRetiros', [{}], function (data) {
+      const tbody = document.getElementById('tablaRetiros');
+      if (!data.length) { tbody.innerHTML = filaVacia(5); return; }
+      tbody.innerHTML = data.map(r => `
+        <tr><td>${fecha(r.FECHA)}</td><td>${money(r.MONTO)}</td><td>${r.BENEFICIARIO || '—'}</td><td>${r.NOTA || '—'}</td>
+        <td><button class="btn btn-danger btn-sm" onclick="eliminarRetiroUI('${r.ID}')">Eliminar</button></td></tr>`).join('');
+    });
+  }
+
+  function abrirModalRetiro() {
+    document.getElementById('retiroMonto').value = '';
+    document.getElementById('retiroFecha').value = '';
+    document.getElementById('retiroBeneficiario').value = '';
+    document.getElementById('retiroNota').value = '';
+    abrirModal('modalRetiro');
+  }
+
+  function guardarRetiro() {
+    const datos = {
+      Monto: document.getElementById('retiroMonto').value,
+      Fecha: document.getElementById('retiroFecha').value || undefined,
+      Beneficiario: document.getElementById('retiroBeneficiario').value.trim(),
+      Nota: document.getElementById('retiroNota').value.trim()
+    };
+    const btn = document.getElementById('btnGuardarRetiro');
+    btn.disabled = true;
+    llamarApi('registrarRetiro', [datos], function () {
+      btn.disabled = false;
+      mostrarToast('Pago/retiro registrado.', 'success');
+      cerrarModal('modalRetiro');
+      cargarFinanzas();
+    }, function () { btn.disabled = false; });
+  }
+
+  function eliminarRetiroUI(id) {
+    if (!confirm('¿Eliminar este pago/retiro?')) return;
+    llamarApi('eliminarRetiro', [id], function () {
+      mostrarToast('Retiro eliminado.', 'success');
+      cargarFinanzas();
+    });
+  }
+
+  function eliminarReinversionUI(id) {
+    if (!confirm('¿Eliminar esta reinversión?')) return;
+    llamarApi('eliminarReinversion', [id], function () {
+      mostrarToast('Reinversión eliminada.', 'success');
+      cargarFinanzas();
     });
   }
 
@@ -961,8 +1061,23 @@
             <button class="btn btn-secondary btn-sm" onclick="exportarMensualCSV()">Exportar CSV</button>
           </div>
           <div class="table-wrap"><table>
-            <thead><tr><th>Mes</th><th>Unidades</th><th>Ventas</th><th>Costos</th><th>Utilidad</th><th>Margen</th></tr></thead>
-            <tbody>${d.meses.length ? d.meses.map(m => `<tr><td>${capitalizar(m.etiqueta)}</td><td>${m.unidades}</td><td>${money(m.ventas)}</td><td>${money(m.costos)}</td><td style="color:var(--success); font-weight:600;">${money(m.utilidad)}</td><td>${m.margen.toFixed(1)}%</td></tr>`).join('') : filaVacia(6)}</tbody>
+            <thead><tr>
+              <th>Mes</th><th>Unid.</th><th>Ventas</th><th>Costo vendido</th><th>Utilidad bruta</th>
+              <th>Gastos</th><th>Utilidad neta</th><th>Inversión</th><th>Pagos/retiros</th><th>Disponible</th><th>Margen</th>
+            </tr></thead>
+            <tbody>${d.meses.length ? d.meses.map(m => `<tr>
+              <td>${capitalizar(m.etiqueta)}</td>
+              <td>${m.unidades}</td>
+              <td>${money(m.ventas)}</td>
+              <td>${money(m.costos)}</td>
+              <td>${money(m.utilidadBruta)}</td>
+              <td style="color:var(--danger);">${money(m.gastos)}</td>
+              <td style="color:var(--success); font-weight:600;">${money(m.utilidadNeta)}</td>
+              <td>${money(m.inversion)}</td>
+              <td style="color:var(--danger);">${money(m.retiros)}</td>
+              <td style="font-weight:600;">${money(m.disponible)}</td>
+              <td>${m.margen.toFixed(1)}%</td>
+            </tr>`).join('') : filaVacia(11)}</tbody>
           </table></div>`;
         window._ultimoReporteMensual = d.meses;
       });
@@ -1049,7 +1164,16 @@
           <td>${money(g.MONTO)}</td>
           <td>${g.UNIDADES_CUBIERTAS || '—'}</td>
           <td>${g.NOTAS || '—'}</td>
+          <td><button class="btn btn-danger btn-sm" onclick="eliminarGastoUI('${g.ID}')">Eliminar</button></td>
         </tr>`).join('');
+    });
+  }
+
+  function eliminarGastoUI(id) {
+    if (!confirm('¿Eliminar este gasto?')) return;
+    llamarApi('eliminarGasto', [id], function () {
+      mostrarToast('Gasto eliminado.', 'success');
+      cargarGastos();
     });
   }
 
@@ -1136,8 +1260,8 @@
     const meses = window._ultimoReporteMensual;
     if (!meses || !meses.length) { mostrarToast('No hay datos para exportar.', 'error'); return; }
     descargarCSV('aluma_reporte_mensual.csv',
-      ['Mes', 'Unidades', 'Ventas', 'Costos', 'Utilidad', 'Margen %'],
-      meses.map(m => [capitalizar(m.etiqueta), m.unidades, m.ventas, m.costos, m.utilidad, m.margen.toFixed(1)])
+      ['Mes', 'Unidades', 'Ventas', 'Costo vendido', 'Utilidad bruta', 'Gastos', 'Utilidad neta', 'Inversión', 'Pagos/retiros', 'Disponible', 'Margen %'],
+      meses.map(m => [capitalizar(m.etiqueta), m.unidades, m.ventas, m.costos, m.utilidadBruta, m.gastos, m.utilidadNeta, m.inversion, m.retiros, m.disponible, m.margen.toFixed(1)])
     );
   }
 
