@@ -273,6 +273,33 @@
               <button class="btn btn-primary" onclick="abrirModalReinversion()">+ Registrar reinversión</button>
             </div>
           </div>
+          <div class="panel" style="margin-bottom:16px; border-left:4px solid var(--primary);">
+            <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px; margin-bottom:6px;">
+              <h3 style="margin:0;">Distribución de utilidades</h3>
+              <div style="display:flex; align-items:center; gap:8px; font-size:13px;">
+                <span style="color:var(--muted);">Reparto:</span>
+                <input type="number" id="distPorcentaje" min="0" max="100" style="width:70px; padding:6px 8px; border:1px solid var(--border); border-radius:6px;">
+                <span style="color:var(--muted);">% · Día:</span>
+                <input type="number" id="distDiaPago" min="1" max="28" style="width:60px; padding:6px 8px; border:1px solid var(--border); border-radius:6px;">
+                <button class="btn btn-secondary btn-sm" onclick="guardarPolitica()">Guardar</button>
+              </div>
+            </div>
+            <div id="distPoliticaTexto" class="sub" style="font-size:12.5px; color:var(--muted); margin-bottom:14px;"></div>
+            <div id="distMesActual" class="stats-grid"></div>
+          </div>
+
+          <div class="panel" style="margin-bottom:16px;">
+            <h3>Cumplimiento de la política (mes a mes)</h3>
+            <div class="table-wrap"><table>
+              <thead><tr>
+                <th>Mes</th><th>Utilidad neta</th>
+                <th>Corresponde pagar</th><th>Pagado</th><th>Pendiente</th>
+                <th>Corresponde reinvertir</th><th>Invertido</th><th>Pendiente</th>
+              </tr></thead>
+              <tbody id="tablaDistribucion"></tbody>
+            </table></div>
+          </div>
+
           <div class="panel" style="margin-bottom:16px;">
             <h3>Inventario actual</h3>
             <div id="finInventario" class="stats-grid"></div>
