@@ -1,17 +1,8 @@
+<script>
 /* ============================================================
    * ALUMA - JavaScript.html
    * Lógica del panel administrativo completo.
    * ============================================================ */
-
-/* ============================================================
-   * ALUMA - app.js (versión GitHub Pages / API por fetch)
-   * ------------------------------------------------------------
-   * IMPORTANTE: reemplaza el valor de APPS_SCRIPT_URL abajo por
-   * el link de tu Web App de Apps Script (el que termina en
-   * /exec). Es el único dato que cambia entre este archivo y el
-   * proyecto de Apps Script.
-   * ============================================================ */
-  const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwrJcu0KpnTsH8uABQn-kH1O-uZNtSRgjejOzW8oVfJkIUy37gCEWU7IPmR1lcKOX9x/exec';
 
   let SESION_TOKEN = localStorage.getItem('aluma_token') || null;
   let VISTA_ACTUAL = 'dashboard';
@@ -27,20 +18,9 @@
    * Wrapper genérico para llamar funciones de Apps Script que
    * devuelven { ok, data } / { ok, error } (ver ejecutarSeguro_).
    * --------------------------------------------------------- */
-  function llamarApi(nombreFuncion, args, onOk, onError, _esReintento) {
-    fetch(APPS_SCRIPT_URL, {
-      method: 'POST',
-      // 'text/plain' evita que el navegador dispare una petición OPTIONS
-      // de preflight (Apps Script no responde a OPTIONS). Apps Script lee
-      // el cuerpo igual con e.postData.contents sin importar este header.
-      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-      body: JSON.stringify({ fn: nombreFuncion, args: args || [], token: SESION_TOKEN })
-    })
-      .then(function (r) {
-        if (!r.ok) throw new Error('HTTP ' + r.status);
-        return r.json();
-      })
-      .then(function (resp) {
+  function llamarApi(nombreFuncion, args, onOk, onError) {
+    const runner = google.script.run
+      .withSuccessHandler(function (resp) {
         if (resp && resp.ok) {
           onOk && onOk(resp.data);
         } else {
@@ -50,22 +30,12 @@
           onError && onError(msg);
         }
       })
-      .catch(function (err) {
-        // Apps Script usado como API externa a veces falla de forma
-        // pasajera (redirecciones internas, límite de peticiones
-        // simultáneas). Reintentamos UNA vez, en silencio, antes de
-        // mostrar el error al usuario.
-        if (!_esReintento) {
-          console.warn('[ALUMA] ' + nombreFuncion + ' falló, reintentando en 1s...', err);
-          setTimeout(function () {
-            llamarApi(nombreFuncion, args, onOk, onError, true);
-          }, 1000);
-          return;
-        }
-        console.error('[ALUMA] ' + nombreFuncion + ' falló (red/conexión) tras reintento:', err);
-        mostrarToast('Error de conexión: ' + err.message, 'error');
+      .withFailureHandler(function (err) {
+        console.error('[ALUMA] ' + nombreFuncion + ' falló (excepción no controlada):', err);
+        mostrarToast('Error: ' + (err.message || err), 'error');
         onError && onError(err);
       });
+    runner[nombreFuncion].apply(runner, args || []);
   }
 
   function mostrarToast(mensaje, tipo) {
@@ -136,11 +106,12 @@
    * ============================================================ */
 
   const TITULOS = {
-    dashboard: 'Dashboard', productos: 'Productos', inventario: 'Inventario',
-    entradas: 'Entradas de inventario', ventas: 'Ventas', movimientos: 'Movimientos',
-    categorias: 'Categorías', clientes: 'Clientes', deudores: 'Deudores', proveedores: 'Proveedores',
-    gastos: 'Gastos', finanzas: 'Finanzas', reportes: 'Reportes'
-  };
+  dashboard: 'Dashboard', productos: 'Productos', inventario: 'Inventario',
+  entradas: 'Entradas de inventario', ventas: 'Ventas', movimientos: 'Movimientos',
+  roturas: 'Roturas',   // ← nuevo
+  categorias: 'Categorías', clientes: 'Clientes', deudores: 'Deudores', proveedores: 'Proveedores',
+  gastos: 'Gastos', finanzas: 'Finanzas', reportes: 'Reportes'
+};
 
   function irAVista(vista) {
     VISTA_ACTUAL = vista;
@@ -163,6 +134,7 @@
     else if (vista === 'gastos') cargarGastos();
     else if (vista === 'finanzas') cargarFinanzas();
     else if (vista === 'reportes') cargarReporteActivo();
+    else if (vista === 'roturas') cargarRoturas();
   }
 
   function abrirSidebar() { document.getElementById('sidebar').classList.add('open'); document.getElementById('overlay').classList.add('visible'); }
@@ -364,7 +336,10 @@
     document.getElementById('prodStockMinimo').value = producto ? producto.STOCK_MINIMO : 3;
     document.getElementById('prodDescripcion').value = producto ? producto.DESCRIPCION : '';
     document.getElementById('prodImagen').value = producto ? producto.IMAGEN_URL : '';
-    abrirModal('modalProducto');
+    abrirModal('modalProducto');document.getElementById('prodNumeroFactura').value = producto ? (producto.NUMERO_FACTURA || '') : '';
+document.getElementById('prodFotoFacturaURL').value = producto ? (producto.FOTO_FACTURA_URL || '') : '';
+actualizarPreviewDesdeURL(document.getElementById('prodImagen').value, 'prodImagenPreview');
+actualizarPreviewDesdeURL(document.getElementById('prodFotoFacturaURL').value, 'prodFacturaPreview');
   }
 
   function guardarProducto() {
@@ -379,7 +354,9 @@
       Precio: document.getElementById('prodPrecio').value,
       StockMinimo: document.getElementById('prodStockMinimo').value,
       Descripcion: document.getElementById('prodDescripcion').value.trim(),
-      ImagenURL: document.getElementById('prodImagen').value.trim()
+      ImagenURL: document.getElementById('prodImagen').value.trim(),
+      NumeroFactura: document.getElementById('prodNumeroFactura').value.trim(),       
+  FotoFacturaURL: document.getElementById('prodFotoFacturaURL').value.trim()
     };
     if (!id) datos.StockInicial = document.getElementById('prodStockInicial').value;
 
@@ -1330,7 +1307,89 @@
 
   function abrirModal(id) { document.getElementById(id).classList.add('visible'); }
   function cerrarModal(id) { document.getElementById(id).classList.remove('visible'); }
+/* ============================================================
+ * FOTOS (cámara / link + vista previa)
+ * ============================================================ */
 
+function actualizarPreviewDesdeURL(url, idPreview) {
+  const img = document.getElementById(idPreview);
+  if (url) { img.src = url; img.style.display = 'block'; }
+  else { img.style.display = 'none'; img.src = ''; }
+}
+
+function previsualizarFoto(input, idPreview, idCampoURL) {
+  const archivo = input.files[0];
+  if (!archivo) return;
+
+  const reader = new FileReader();
+  reader.onload = function (e) {
+    const base64Completo = e.target.result; // "data:image/jpeg;base64,AAAA..."
+    const base64 = base64Completo.split(',')[1];
+
+    // Vista previa inmediata (local, antes de subir a Drive)
+    document.getElementById(idPreview).src = base64Completo;
+    document.getElementById(idPreview).style.display = 'block';
+
+    // Subir a Drive en segundo plano y, al terminar, guardar la URL real
+    llamarApi('subirImagenProducto', [{
+      base64: base64,
+      nombreArchivo: 'aluma_' + Date.now() + '_' + archivo.name,
+      mimeType: archivo.type
+    }], function (res) {
+      document.getElementById(idCampoURL).value = res.url;
+      mostrarToast('Foto subida correctamente.', 'success');
+    }, function () {
+      mostrarToast('No se pudo subir la foto. Intenta de nuevo.', 'error');
+    });
+  };
+  reader.readAsDataURL(archivo);
+}
+
+/* ============================================================
+ * ROTURAS
+ * ============================================================ */
+
+function cargarRoturas() {
+  llamarApi('obtenerResumenRoturas', [], function (r) {
+    document.getElementById('roturasStats').innerHTML = `
+      ${statCard('Registros de rotura', r.totalRegistros)}
+      ${statCard('Unidades dañadas', r.totalUnidades)}
+      ${statCard('Costo perdido', money(r.totalCostoPerdido), true)}
+    `;
+  });
+  llamarApi('obtenerRoturas', [{}], function (data) {
+    const tbody = document.getElementById('tablaRoturas');
+    if (!data.length) { tbody.innerHTML = filaVacia(5); return; }
+    tbody.innerHTML = data.map(r => `
+      <tr><td>${fecha(r.FECHA)}</td><td>${r.PRODUCTO}</td><td>${r.SKU}</td><td>${r.CANTIDAD}</td><td>${r.MOTIVO}</td></tr>
+    `).join('');
+  });
+}
+
+function abrirModalRotura() {
+  const activos = CACHE.productos.filter(p => p.ESTADO === 'Activo' && Number(p.STOCK) > 0);
+  document.getElementById('roturaProducto').innerHTML =
+    activos.map(p => `<option value="${p.ID}">${p.NOMBRE} (stock: ${p.STOCK})</option>`).join('');
+  document.getElementById('roturaCantidad').value = '';
+  abrirModal('modalRotura');
+}
+
+function guardarRotura() {
+  const datos = {
+    ProductoID: document.getElementById('roturaProducto').value,
+    Cantidad: document.getElementById('roturaCantidad').value,
+    Motivo: document.getElementById('roturaMotivo').value
+  };
+  const btn = document.getElementById('btnGuardarRotura');
+  btn.disabled = true;
+  llamarApi('registrarRotura', [datos], function () {
+    btn.disabled = false;
+    mostrarToast('Rotura registrada. Stock descontado.', 'success');
+    cerrarModal('modalRotura');
+    cargarRoturas();
+    cargarDatosBase();
+  }, function () { btn.disabled = false; });
+}
   /* ============================================================
    * INICIO
    * ============================================================ */
@@ -1340,3 +1399,4 @@
   document.getElementById('loginPassword').addEventListener('keypress', function (e) {
     if (e.key === 'Enter') hacerLogin();
   });
+</script>
