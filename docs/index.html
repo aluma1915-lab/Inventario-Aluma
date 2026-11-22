@@ -1,11 +1,11 @@
 <!DOCTYPE html>
-<html>
+<html lang="es">
 <head>
-  <base target="_top">
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ALUMA · Panel administrativo</title>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
-  <link rel="stylesheet" href="./Styles.css">
+  <link rel="stylesheet" href="./styles.css">
 </head>
 <body>
 
@@ -42,6 +42,7 @@
         <button class="nav-item" data-view="entradas" onclick="irAVista('entradas')"><span class="dot"></span> Entradas</button>
         <button class="nav-item" data-view="ventas" onclick="irAVista('ventas')"><span class="dot"></span> Ventas</button>
         <button class="nav-item" data-view="movimientos" onclick="irAVista('movimientos')"><span class="dot"></span> Movimientos</button>
+        <button class="nav-item" data-view="roturas" onclick="irAVista('roturas')"><span class="dot"></span> Roturas</button>
         <button class="nav-item" data-view="categorias" onclick="irAVista('categorias')"><span class="dot"></span> Categorías</button>
         <button class="nav-item" data-view="clientes" onclick="irAVista('clientes')"><span class="dot"></span> Clientes</button>
         <button class="nav-item" data-view="deudores" onclick="irAVista('deudores')"><span class="dot"></span> Deudores</button>
@@ -49,7 +50,6 @@
         <button class="nav-item" data-view="gastos" onclick="irAVista('gastos')"><span class="dot"></span> Gastos</button>
         <button class="nav-item" data-view="finanzas" onclick="irAVista('finanzas')"><span class="dot"></span> Finanzas</button>
         <button class="nav-item" data-view="reportes" onclick="irAVista('reportes')"><span class="dot"></span> Reportes</button>
-        <button class="nav-item" data-view="roturas" onclick="irAVista('roturas')"><span class="dot"></span> Roturas</button>
       </nav>
       <div class="sidebar-footer">
         <button class="btn btn-ghost btn-block" style="color:#f4e9e8" onclick="hacerLogout()">Cerrar sesión</button>
@@ -193,19 +193,20 @@
             <tbody id="tablaMovimientos"></tbody>
           </table></div>
         </section>
-        <!-- ===== ROTURAS ===== -->
 
-<section id="view-roturas" class="view">
-  <div class="view-header">
-    <h2>Roturas / piezas dañadas</h2>
-    <button class="btn btn-primary" onclick="abrirModalRotura()">+ Registrar rotura</button>
-  </div>
-  <div id="roturasStats" class="stats-grid"></div>
-  <div class="table-wrap"><table>
-    <thead><tr><th>Fecha</th><th>Producto</th><th>SKU</th><th>Cantidad</th><th>Motivo</th></tr></thead>
-    <tbody id="tablaRoturas"></tbody>
-  </table></div>
-</section>
+        <!-- ===== ROTURAS ===== -->
+        <section id="view-roturas" class="view">
+          <div class="view-header">
+            <h2>Roturas / piezas dañadas</h2>
+            <button class="btn btn-primary" onclick="abrirModalRotura()">+ Registrar rotura</button>
+          </div>
+          <div id="roturasStats" class="stats-grid"></div>
+          <div class="table-wrap"><table>
+            <thead><tr><th>Fecha</th><th>Producto</th><th>SKU</th><th>Cantidad</th><th>Motivo</th></tr></thead>
+            <tbody id="tablaRoturas"></tbody>
+          </table></div>
+        </section>
+
         <!-- ===== CATEGORIAS ===== -->
         <section id="view-categorias" class="view">
           <div class="view-header">
@@ -361,31 +362,33 @@
   </div>
 
   <!-- ================= MODALES ================= -->
-<div class="modal-overlay" id="modalRotura">
-  <div class="modal">
-    <button class="modal-close" onclick="cerrarModal('modalRotura')">&times;</button>
-    <h3>Registrar rotura / pieza dañada</h3>
-    <form onsubmit="return false;">
-      <div class="field"><label>Producto</label>
-        <select id="roturaProducto" required></select>
-      </div>
-      <div class="field"><label>Cantidad dañada</label><input type="number" id="roturaCantidad" min="1" required></div>
-      <div class="field"><label>Motivo</label>
-        <select id="roturaMotivo">
-          <option>Se peló el baño</option>
-          <option>Se partió / rompió</option>
-          <option>Cadena/tejido dañado</option>
-          <option>Defecto de fábrica</option>
-          <option>Otro</option>
-        </select>
-      </div>
-      <div class="form-actions">
-        <button class="btn btn-ghost" onclick="cerrarModal('modalRotura')">Cancelar</button>
-        <button class="btn btn-primary" id="btnGuardarRotura" onclick="guardarRotura()">Registrar</button>
-      </div>
-    </form>
+
+  <div class="modal-overlay" id="modalRotura">
+    <div class="modal">
+      <button class="modal-close" onclick="cerrarModal('modalRotura')">&times;</button>
+      <h3>Registrar rotura / pieza dañada</h3>
+      <form onsubmit="return false;">
+        <div class="field"><label>Producto</label>
+          <select id="roturaProducto" required></select>
+        </div>
+        <div class="field"><label>Cantidad dañada</label><input type="number" id="roturaCantidad" min="1" required></div>
+        <div class="field"><label>Motivo</label>
+          <select id="roturaMotivo">
+            <option>Se peló el baño</option>
+            <option>Se partió / rompió</option>
+            <option>Cadena/tejido dañado</option>
+            <option>Defecto de fábrica</option>
+            <option>Otro</option>
+          </select>
+        </div>
+        <div class="form-actions">
+          <button type="button" class="btn btn-ghost" onclick="cerrarModal('modalRotura')">Cancelar</button>
+          <button type="button" class="btn btn-primary" id="btnGuardarRotura" onclick="guardarRotura()">Registrar</button>
+        </div>
+      </form>
+    </div>
   </div>
-</div>
+
   <div class="modal-overlay" id="modalProducto">
     <div class="modal">
       <button class="modal-close" onclick="cerrarModal('modalProducto')">&times;</button>
@@ -399,18 +402,18 @@
         </div>
         <div class="form-row">
           <div class="field">
-           <label>Material</label>
-    <select id="prodMaterial" required>
-      <option value="Oro laminado 18k">Oro laminado 18k</option>
-      <option value="Plata 925">Plata 925</option>
-      <option value="Rodinado">Rodinado</option>
-      <option value="Murano">Murano</option>
-    </select>
-  </div>
-  <div class="field"><label>Estado</label>
-    <select id="prodEstado"><option value="Activo">Activo</option><option value="Inactivo">Inactivo</option></select>
-  </div>
-</div>
+            <label>Material</label>
+            <select id="prodMaterial" required>
+              <option value="Oro laminado 18k">Oro laminado 18k</option>
+              <option value="Plata 925">Plata 925</option>
+              <option value="Rodinado">Rodinado</option>
+              <option value="Murano">Murano</option>
+            </select>
+          </div>
+          <div class="field"><label>Estado</label>
+            <select id="prodEstado"><option value="Activo">Activo</option><option value="Inactivo">Inactivo</option></select>
+          </div>
+        </div>
         <div class="form-row">
           <div class="field"><label>Costo</label><input type="number" step="0.01" id="prodCosto" required></div>
           <div class="field"><label>Precio de venta</label><input type="number" step="0.01" id="prodPrecio" required></div>
@@ -421,24 +424,23 @@
         </div>
         <div class="field"><label>Descripción</label><textarea id="prodDescripcion"></textarea></div>
         <div class="field">
-  <label>Foto del producto</label>
-  <input type="file" id="prodFotoArchivo" accept="image/*" capture="environment" onchange="previsualizarFoto(this, 'prodImagenPreview', 'prodImagen')">
-  <input type="text" id="prodImagen" placeholder="O pega un link de imagen..." style="margin-top:8px;" oninput="actualizarPreviewDesdeURL(this.value, 'prodImagenPreview')">
-  <img id="prodImagenPreview" style="display:none; max-width:140px; margin-top:10px; border-radius:6px; border:1px solid var(--border);">
-</div>
-
-<div class="form-row">
-  <div class="field"><label>N.º de factura / certificado</label><input type="text" id="prodNumeroFactura" placeholder="Ej: FAC-00123"></div>
-</div>
-<div class="field">
-  <label>Foto de la factura / certificado</label>
-  <input type="file" id="prodFacturaArchivo" accept="image/*" capture="environment" onchange="previsualizarFoto(this, 'prodFacturaPreview', 'prodFotoFacturaURL')">
-  <input type="text" id="prodFotoFacturaURL" placeholder="O pega un link..." style="margin-top:8px;" oninput="actualizarPreviewDesdeURL(this.value, 'prodFacturaPreview')">
-  <img id="prodFacturaPreview" style="display:none; max-width:140px; margin-top:10px; border-radius:6px; border:1px solid var(--border);">
-</div>
+          <label>Foto del producto</label>
+          <input type="file" id="prodFotoArchivo" accept="image/*" capture="environment" onchange="previsualizarFoto(this, 'prodImagenPreview', 'prodImagen')">
+          <input type="text" id="prodImagen" placeholder="O pega un link de imagen..." style="margin-top:8px;" oninput="actualizarPreviewDesdeURL(this.value, 'prodImagenPreview')">
+          <img id="prodImagenPreview" alt="Vista previa" style="display:none; max-width:140px; margin-top:10px; border-radius:6px; border:1px solid var(--border);">
+        </div>
+        <div class="form-row">
+          <div class="field"><label>N.º de factura / certificado</label><input type="text" id="prodNumeroFactura" placeholder="Ej: FAC-00123"></div>
+        </div>
+        <div class="field">
+          <label>Foto de la factura / certificado</label>
+          <input type="file" id="prodFacturaArchivo" accept="image/*" capture="environment" onchange="previsualizarFoto(this, 'prodFacturaPreview', 'prodFotoFacturaURL')">
+          <input type="text" id="prodFotoFacturaURL" placeholder="O pega un link..." style="margin-top:8px;" oninput="actualizarPreviewDesdeURL(this.value, 'prodFacturaPreview')">
+          <img id="prodFacturaPreview" alt="Vista previa" style="display:none; max-width:140px; margin-top:10px; border-radius:6px; border:1px solid var(--border);">
+        </div>
         <div class="form-actions">
-          <button class="btn btn-ghost" onclick="cerrarModal('modalProducto')">Cancelar</button>
-          <button class="btn btn-primary" id="btnGuardarProducto" onclick="guardarProducto()">Guardar</button>
+          <button type="button" class="btn btn-ghost" onclick="cerrarModal('modalProducto')">Cancelar</button>
+          <button type="button" class="btn btn-primary" id="btnGuardarProducto" onclick="guardarProducto()">Guardar</button>
         </div>
       </form>
     </div>
@@ -457,8 +459,8 @@
         <div class="field"><label>Proveedor</label><select id="entradaProveedor"><option value="">— Ninguno —</option></select></div>
         <div class="field"><label>Motivo / nota</label><input type="text" id="entradaMotivo"></div>
         <div class="form-actions">
-          <button class="btn btn-ghost" onclick="cerrarModal('modalEntrada')">Cancelar</button>
-          <button class="btn btn-primary" id="btnGuardarEntrada" onclick="guardarEntrada()">Registrar</button>
+          <button type="button" class="btn btn-ghost" onclick="cerrarModal('modalEntrada')">Cancelar</button>
+          <button type="button" class="btn btn-primary" id="btnGuardarEntrada" onclick="guardarEntrada()">Registrar</button>
         </div>
       </form>
     </div>
@@ -473,8 +475,8 @@
         <div class="field"><label>Cantidad del ajuste (positiva o negativa, ej: -2)</label><input type="number" id="ajusteCantidad" required></div>
         <div class="field"><label>Motivo</label><input type="text" id="ajusteMotivo" placeholder="Ej: Conteo físico" required></div>
         <div class="form-actions">
-          <button class="btn btn-ghost" onclick="cerrarModal('modalAjuste')">Cancelar</button>
-          <button class="btn btn-primary" id="btnGuardarAjuste" onclick="guardarAjuste()">Aplicar ajuste</button>
+          <button type="button" class="btn btn-ghost" onclick="cerrarModal('modalAjuste')">Cancelar</button>
+          <button type="button" class="btn btn-primary" id="btnGuardarAjuste" onclick="guardarAjuste()">Aplicar ajuste</button>
         </div>
       </form>
     </div>
@@ -518,8 +520,8 @@
         </div>
         <div class="field"><label>Observaciones</label><input type="text" id="ventaObservaciones"></div>
         <div class="form-actions">
-          <button class="btn btn-ghost" onclick="cerrarModal('modalVenta')">Cancelar</button>
-          <button class="btn btn-primary" id="btnGuardarVenta" onclick="guardarVenta()">Registrar venta</button>
+          <button type="button" class="btn btn-ghost" onclick="cerrarModal('modalVenta')">Cancelar</button>
+          <button type="button" class="btn btn-primary" id="btnGuardarVenta" onclick="guardarVenta()">Registrar venta</button>
         </div>
       </form>
     </div>
@@ -534,8 +536,8 @@
         <div class="field"><label>Nombre</label><input type="text" id="catNombre" required></div>
         <div class="field"><label>Descripción</label><input type="text" id="catDescripcion"></div>
         <div class="form-actions">
-          <button class="btn btn-ghost" onclick="cerrarModal('modalCategoria')">Cancelar</button>
-          <button class="btn btn-primary" id="btnGuardarCategoria" onclick="guardarCategoria()">Guardar</button>
+          <button type="button" class="btn btn-ghost" onclick="cerrarModal('modalCategoria')">Cancelar</button>
+          <button type="button" class="btn btn-primary" id="btnGuardarCategoria" onclick="guardarCategoria()">Guardar</button>
         </div>
       </form>
     </div>
@@ -552,8 +554,8 @@
           <div class="field"><label>Ciudad</label><input type="text" id="cliCiudad"></div>
         </div>
         <div class="form-actions">
-          <button class="btn btn-ghost" onclick="cerrarModal('modalCliente')">Cancelar</button>
-          <button class="btn btn-primary" id="btnGuardarCliente" onclick="guardarCliente()">Guardar</button>
+          <button type="button" class="btn btn-ghost" onclick="cerrarModal('modalCliente')">Cancelar</button>
+          <button type="button" class="btn btn-primary" id="btnGuardarCliente" onclick="guardarCliente()">Guardar</button>
         </div>
       </form>
     </div>
@@ -575,8 +577,8 @@
         </div>
         <div class="field"><label>Notas</label><textarea id="provNotas"></textarea></div>
         <div class="form-actions">
-          <button class="btn btn-ghost" onclick="cerrarModal('modalProveedor')">Cancelar</button>
-          <button class="btn btn-primary" id="btnGuardarProveedor" onclick="guardarProveedor()">Guardar</button>
+          <button type="button" class="btn btn-ghost" onclick="cerrarModal('modalProveedor')">Cancelar</button>
+          <button type="button" class="btn btn-primary" id="btnGuardarProveedor" onclick="guardarProveedor()">Guardar</button>
         </div>
       </form>
     </div>
@@ -597,8 +599,8 @@
         <div id="gastoPreview" class="sub" style="font-size:12px; color:var(--muted); margin:-8px 0 12px;"></div>
         <div class="field"><label>Notas</label><input type="text" id="gastoNotas"></div>
         <div class="form-actions">
-          <button class="btn btn-ghost" onclick="cerrarModal('modalGasto')">Cancelar</button>
-          <button class="btn btn-primary" id="btnGuardarGasto" onclick="guardarGasto()">Guardar</button>
+          <button type="button" class="btn btn-ghost" onclick="cerrarModal('modalGasto')">Cancelar</button>
+          <button type="button" class="btn btn-primary" id="btnGuardarGasto" onclick="guardarGasto()">Guardar</button>
         </div>
       </form>
     </div>
@@ -613,8 +615,8 @@
         <div id="abonoInfo" class="sub" style="font-size:13px; color:var(--muted); margin-bottom:12px;"></div>
         <div class="field"><label>Monto del abono</label><input type="number" step="0.01" id="abonoMonto" required></div>
         <div class="form-actions">
-          <button class="btn btn-ghost" onclick="cerrarModal('modalAbono')">Cancelar</button>
-          <button class="btn btn-primary" id="btnGuardarAbono" onclick="guardarAbono()">Registrar abono</button>
+          <button type="button" class="btn btn-ghost" onclick="cerrarModal('modalAbono')">Cancelar</button>
+          <button type="button" class="btn btn-primary" id="btnGuardarAbono" onclick="guardarAbono()">Registrar abono</button>
         </div>
       </form>
     </div>
@@ -628,8 +630,8 @@
         <div class="field"><label>Monto reinvertido</label><input type="number" step="0.01" id="reinversionMonto" required></div>
         <div class="field"><label>Nota</label><input type="text" id="reinversionNota" placeholder="Ej: Compra de mercancía nueva - proveedor X"></div>
         <div class="form-actions">
-          <button class="btn btn-ghost" onclick="cerrarModal('modalReinversion')">Cancelar</button>
-          <button class="btn btn-primary" id="btnGuardarReinversion" onclick="guardarReinversion()">Guardar</button>
+          <button type="button" class="btn btn-ghost" onclick="cerrarModal('modalReinversion')">Cancelar</button>
+          <button type="button" class="btn btn-primary" id="btnGuardarReinversion" onclick="guardarReinversion()">Guardar</button>
         </div>
       </form>
     </div>
@@ -650,8 +652,8 @@
         <div class="field"><label>Beneficiario</label><input type="text" id="retiroBeneficiario" placeholder="Ej: Socia 1"></div>
         <div class="field"><label>Nota</label><input type="text" id="retiroNota"></div>
         <div class="form-actions">
-          <button class="btn btn-ghost" onclick="cerrarModal('modalRetiro')">Cancelar</button>
-          <button class="btn btn-primary" id="btnGuardarRetiro" onclick="guardarRetiro()">Guardar</button>
+          <button type="button" class="btn btn-ghost" onclick="cerrarModal('modalRetiro')">Cancelar</button>
+          <button type="button" class="btn btn-primary" id="btnGuardarRetiro" onclick="guardarRetiro()">Guardar</button>
         </div>
       </form>
     </div>
@@ -678,8 +680,8 @@
         </div>
         <div class="field"><label>Observaciones</label><input type="text" id="editVentaObservaciones"></div>
         <div class="form-actions">
-          <button class="btn btn-ghost" onclick="cerrarModal('modalEditarVenta')">Cancelar</button>
-          <button class="btn btn-primary" id="btnGuardarEdicionVenta" onclick="guardarEdicionVenta()">Guardar cambios</button>
+          <button type="button" class="btn btn-ghost" onclick="cerrarModal('modalEditarVenta')">Cancelar</button>
+          <button type="button" class="btn btn-primary" id="btnGuardarEdicionVenta" onclick="guardarEdicionVenta()">Guardar cambios</button>
         </div>
       </form>
     </div>
@@ -687,6 +689,6 @@
 
   <div class="toast-container" id="toastContainer"></div>
 
-  <?!= include('JavaScript'); ?>
+  <script src="./app.js"></script>
 </body>
 </html>
