@@ -1,10 +1,11 @@
 <!DOCTYPE html>
 <html>
 <head>
+  <base target="_top">
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
-  <link rel="stylesheet" href="styles.css">
+  <?!= include('Styles'); ?>
 </head>
 <body>
 
@@ -48,6 +49,7 @@
         <button class="nav-item" data-view="gastos" onclick="irAVista('gastos')"><span class="dot"></span> Gastos</button>
         <button class="nav-item" data-view="finanzas" onclick="irAVista('finanzas')"><span class="dot"></span> Finanzas</button>
         <button class="nav-item" data-view="reportes" onclick="irAVista('reportes')"><span class="dot"></span> Reportes</button>
+        <button class="nav-item" data-view="roturas" onclick="irAVista('roturas')"><span class="dot"></span> Roturas</button>
       </nav>
       <div class="sidebar-footer">
         <button class="btn btn-ghost btn-block" style="color:#f4e9e8" onclick="hacerLogout()">Cerrar sesión</button>
@@ -191,7 +193,19 @@
             <tbody id="tablaMovimientos"></tbody>
           </table></div>
         </section>
+        <!-- ===== ROTURAS ===== -->
 
+<section id="view-roturas" class="view">
+  <div class="view-header">
+    <h2>Roturas / piezas dañadas</h2>
+    <button class="btn btn-primary" onclick="abrirModalRotura()">+ Registrar rotura</button>
+  </div>
+  <div id="roturasStats" class="stats-grid"></div>
+  <div class="table-wrap"><table>
+    <thead><tr><th>Fecha</th><th>Producto</th><th>SKU</th><th>Cantidad</th><th>Motivo</th></tr></thead>
+    <tbody id="tablaRoturas"></tbody>
+  </table></div>
+</section>
         <!-- ===== CATEGORIAS ===== -->
         <section id="view-categorias" class="view">
           <div class="view-header">
@@ -347,7 +361,31 @@
   </div>
 
   <!-- ================= MODALES ================= -->
-
+<div class="modal-overlay" id="modalRotura">
+  <div class="modal">
+    <button class="modal-close" onclick="cerrarModal('modalRotura')">&times;</button>
+    <h3>Registrar rotura / pieza dañada</h3>
+    <form onsubmit="return false;">
+      <div class="field"><label>Producto</label>
+        <select id="roturaProducto" required></select>
+      </div>
+      <div class="field"><label>Cantidad dañada</label><input type="number" id="roturaCantidad" min="1" required></div>
+      <div class="field"><label>Motivo</label>
+        <select id="roturaMotivo">
+          <option>Se peló el baño</option>
+          <option>Se partió / rompió</option>
+          <option>Cadena/tejido dañado</option>
+          <option>Defecto de fábrica</option>
+          <option>Otro</option>
+        </select>
+      </div>
+      <div class="form-actions">
+        <button class="btn btn-ghost" onclick="cerrarModal('modalRotura')">Cancelar</button>
+        <button class="btn btn-primary" id="btnGuardarRotura" onclick="guardarRotura()">Registrar</button>
+      </div>
+    </form>
+  </div>
+</div>
   <div class="modal-overlay" id="modalProducto">
     <div class="modal">
       <button class="modal-close" onclick="cerrarModal('modalProducto')">&times;</button>
@@ -360,11 +398,19 @@
           <div class="field"><label>Subcategoría</label><input type="text" id="prodSubcategoria"></div>
         </div>
         <div class="form-row">
-          <div class="field"><label>Material</label><input type="text" id="prodMaterial"></div>
-          <div class="field"><label>Estado</label>
-            <select id="prodEstado"><option value="Activo">Activo</option><option value="Inactivo">Inactivo</option></select>
-          </div>
-        </div>
+          <div class="field">
+           <label>Material</label>
+    <select id="prodMaterial" required>
+      <option value="Oro laminado 18k">Oro laminado 18k</option>
+      <option value="Plata 925">Plata 925</option>
+      <option value="Rodinado">Rodinado</option>
+      <option value="Murano">Murano</option>
+    </select>
+  </div>
+  <div class="field"><label>Estado</label>
+    <select id="prodEstado"><option value="Activo">Activo</option><option value="Inactivo">Inactivo</option></select>
+  </div>
+</div>
         <div class="form-row">
           <div class="field"><label>Costo</label><input type="number" step="0.01" id="prodCosto" required></div>
           <div class="field"><label>Precio de venta</label><input type="number" step="0.01" id="prodPrecio" required></div>
@@ -374,7 +420,22 @@
           <div class="field"><label>Stock mínimo</label><input type="number" id="prodStockMinimo" value="3"></div>
         </div>
         <div class="field"><label>Descripción</label><textarea id="prodDescripcion"></textarea></div>
-        <div class="field"><label>URL de imagen</label><input type="text" id="prodImagen" placeholder="https://..."></div>
+        <div class="field">
+  <label>Foto del producto</label>
+  <input type="file" id="prodFotoArchivo" accept="image/*" capture="environment" onchange="previsualizarFoto(this, 'prodImagenPreview', 'prodImagen')">
+  <input type="text" id="prodImagen" placeholder="O pega un link de imagen..." style="margin-top:8px;" oninput="actualizarPreviewDesdeURL(this.value, 'prodImagenPreview')">
+  <img id="prodImagenPreview" style="display:none; max-width:140px; margin-top:10px; border-radius:6px; border:1px solid var(--border);">
+</div>
+
+<div class="form-row">
+  <div class="field"><label>N.º de factura / certificado</label><input type="text" id="prodNumeroFactura" placeholder="Ej: FAC-00123"></div>
+</div>
+<div class="field">
+  <label>Foto de la factura / certificado</label>
+  <input type="file" id="prodFacturaArchivo" accept="image/*" capture="environment" onchange="previsualizarFoto(this, 'prodFacturaPreview', 'prodFotoFacturaURL')">
+  <input type="text" id="prodFotoFacturaURL" placeholder="O pega un link..." style="margin-top:8px;" oninput="actualizarPreviewDesdeURL(this.value, 'prodFacturaPreview')">
+  <img id="prodFacturaPreview" style="display:none; max-width:140px; margin-top:10px; border-radius:6px; border:1px solid var(--border);">
+</div>
         <div class="form-actions">
           <button class="btn btn-ghost" onclick="cerrarModal('modalProducto')">Cancelar</button>
           <button class="btn btn-primary" id="btnGuardarProducto" onclick="guardarProducto()">Guardar</button>
@@ -626,6 +687,6 @@
 
   <div class="toast-container" id="toastContainer"></div>
 
-  <script src="app.js"></script>
+  <?!= include('JavaScript'); ?>
 </body>
 </html>
